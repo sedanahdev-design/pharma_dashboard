@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}الدفعات الشهرية{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>الدفعات الشهرية</h1>
+        <p>كل دفعة تمثل ملف موسع شهر واحد مع التصنيفات المستهدفة الخاصة به</p>
+    </div>
+    <a href="{% url 'tracking:upload_create' %}" class="btn btn-primary">+ رفع شهر جديد</a>
+</div>
+
+{% if uploads %}
+<div class="upload-grid">
+    {% for u in uploads %}
+    <div class="card upload-card">
+        <div>
+            <a href="{{ u.get_absolute_url }}" style="font-weight:700; font-size:1.05rem;">{{ u.name }}</a>
+            <div class="meta">
+                {{ u.total_rows }} سطر مبيعات · {{ u.categories.count }} تصنيف · {{ u.pharmacy_count }} صيدلية ·
+                رُفع بتاريخ {{ u.uploaded_at|date:"Y/m/d H:i" }}
+                {% if u.source_filename %} · {{ u.source_filename }}{% endif %}
+            </div>
+        </div>
+        <div class="actions">
+            <a href="{{ u.get_absolute_url }}" class="btn btn-sm btn-primary">فتح</a>
+            <a href="{% url 'tracking:export_excel' u.pk %}" class="btn btn-sm">تصدير Excel</a>
+            <form method="post" action="{% url 'tracking:upload_delete' u.pk %}" onsubmit="return confirm('حذف هذه الدفعة نهائياً؟');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-danger">حذف</button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card empty-state">
+    <p>لا توجد أي دفعة بعد.</p>
+    <a href="{% url 'tracking:upload_create' %}" class="btn btn-primary">ابدأ برفع أول ملف موسع</a>
+</div>
+{% endif %}
+{% endblock %}

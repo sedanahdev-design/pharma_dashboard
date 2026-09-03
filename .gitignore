@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+data/db.sqlite3
+data/media/*
+!data/media/.gitkeep
+staticfiles/
+.venv/
+venv/
+*.log

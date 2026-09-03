@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}{{ upload.name }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>{{ upload.name }}</h1>
+        <p>{{ upload.total_rows }} سطر مبيعات · رُفع بتاريخ {{ upload.uploaded_at|date:"Y/m/d H:i" }}{% if upload.source_filename %} · {{ upload.source_filename }}{% endif %}</p>
+    </div>
+    <div class="actions" style="display:flex; gap:8px;">
+        <a href="{% url 'tracking:export_excel' upload.pk %}" class="btn btn-accent">⬇ تصدير النتيجة Excel</a>
+        <a href="{% url 'tracking:upload_list' %}" class="btn">كل الدفعات</a>
+    </div>
+</div>
+
+{% include "tracking/_dashboard_content.html" %}
+{% endblock %}

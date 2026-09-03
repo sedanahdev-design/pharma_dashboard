@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}متابعة التزام الصيدليات بالتصنيفات{% endblock %}</title>
+<link rel="stylesheet" href="{% load static %}{% static 'tracking/css/app.css' %}">
+<script src="{% static 'tracking/js/htmx.min.js' %}" defer></script>
+</head>
+<body>
+<header class="topbar">
+    <div class="wrap topbar-inner">
+        <a href="{% url 'tracking:upload_list' %}" class="brand">
+            <span class="brand-mark">Rx</span>
+            <span class="brand-text">متابعة التصنيفات الدوائية</span>
+        </a>
+        <nav class="topnav">
+            <a href="{% url 'tracking:upload_list' %}">الدفعات الشهرية</a>
+            <a href="{% url 'tracking:upload_create' %}" class="btn btn-primary btn-sm">+ رفع شهر جديد</a>
+        </nav>
+    </div>
+</header>
+
+{% if messages %}
+<div class="wrap">
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags|default:'info' }}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<main class="wrap main-content">
+    {% block content %}{% endblock %}
+</main>
+
+<footer class="site-footer">
+    <div class="wrap">لوحة داخلية لمتابعة التزام الصيدليات بالأصناف المستهدفة شهرياً</div>
+</footer>
+</body>
+</html>

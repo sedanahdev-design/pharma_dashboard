@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}رفع شهر جديد{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>رفع شهر جديد</h1>
+        <p>ارفع ملف موسع الشهر، واختياريًا انسخ تصنيفات شهر سابق أو استورد ملف تارغيت + كاتيغوري</p>
+    </div>
+</div>
+
+<div class="card" style="max-width:640px;">
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {% for field in form %}
+        <div class="field">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.help_text %}<small class="help">{{ field.help_text }}</small>{% endif %}
+            {{ field.errors }}
+        </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary btn-block">رفع ومعالجة الملف</button>
+    </form>
+</div>
+{% endblock %}

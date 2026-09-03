@@ -1,0 +1,180 @@
+{% load tracking_extras %}
+<div id="dashboard-content">
+
+<div class="stat-row">
+    <div class="stat-box">
+        <div class="label">الكمية المتتبعة (ضمن تصنيفات)</div>
+        <div class="value">{{ report.total_tracked_qty|qty }}</div>
+        <div class="sub">من إجمالي {{ report.grand_total_qty|qty }} عبوة في الملف</div>
+    </div>
+    <div class="stat-box">
+        <div class="label">من الصنف المستهدف</div>
+        <div class="value">{{ report.total_target_qty|qty }}</div>
+        <div class="sub">نسبة الالتزام العامة: <span class="pct-badge {{ report.target_pct|pct_class }}">{{ report.target_pct|pct }}%</span></div>
+    </div>
+    <div class="stat-box">
+        <div class="label">من أصناف بديلة أخرى</div>
+        <div class="value">{{ report.total_alt_qty|qty }}</div>
+        <div class="sub">تحتاج مراجعة لفهم سبب التحويل</div>
+    </div>
+    <div class="stat-box">
+        <div class="label">عدد التصنيفات</div>
+        <div class="value">{{ categories|length }}</div>
+        <div class="sub">{{ upload.pharmacy_count }} صيدلية نشطة</div>
+    </div>
+</div>
+
+<div class="two-col">
+    <!-- ================= Category editor ================= -->
+    <div>
+        <div class="card">
+            <div class="card-title">التصنيفات المستهدفة لهذا الشهر</div>
+            <form class="inline-form" style="margin-bottom:14px;"
+                  hx-post="{% url 'tracking:category_add' upload.pk %}"
+                  hx-target="#dashboard-content" hx-swap="outerHTML">
+                {% csrf_token %}
+                {{ category_form.name }}
+                <button type="submit" class="btn btn-primary btn-sm">+ إضافة تصنيف</button>
+            </form>
+
+            {% if categories %}
+            <div class="category-editor-list">
+                {% for cat in categories %}
+                <details class="category-editor-item" open>
+                    <summary>
+                        <form class="rename-form"
+                              hx-post="{% url 'tracking:category_rename' upload.pk cat.pk %}"
+                              hx-target="#dashboard-content" hx-swap="outerHTML"
+                              onclick="event.stopPropagation()">
+                            {% csrf_token %}
+                            <input type="text" name="name" value="{{ cat.name }}" onchange="this.form.requestSubmit()">
+                            <span class="count-chip">{{ cat.target_items.count }} صنف</span>
+                        </form>
+                        <form hx-post="{% url 'tracking:category_delete' upload.pk cat.pk %}"
+                              hx-target="#dashboard-content" hx-swap="outerHTML"
+                              hx-confirm="حذف تصنيف «{{ cat.name }}» بكل أصنافه المستهدفة؟"
+                              onclick="event.stopPropagation()">
+                            {% csrf_token %}
+                            <button type="submit" class="icon-btn" title="حذف التصنيف">✕</button>
+                        </form>
+                    </summary>
+                    <div class="category-editor-body">
+                        {% for item in cat.target_items.all %}
+                        <div class="target-item-row">
+                            <span>{{ item.item_name }}</span>
+                            <form hx-post="{% url 'tracking:item_delete' upload.pk item.pk %}"
+                                  hx-target="#dashboard-content" hx-swap="outerHTML">
+                                {% csrf_token %}
+                                <button type="submit" class="icon-btn" title="حذف">✕</button>
+                            </form>
+                        </div>
+                        {% empty %}
+                        <p style="color:var(--text-muted); font-size:.85rem; margin:8px 0;">لا يوجد أصناف مستهدفة بعد في هذا التصنيف.</p>
+                        {% endfor %}
+                        <form class="inline-form" style="margin-top:10px;"
+                              hx-post="{% url 'tracking:item_add' upload.pk cat.pk %}"
+                              hx-target="#dashboard-content" hx-swap="outerHTML">
+                            {% csrf_token %}
+                            {{ item_form.item_name }}
+                            <button type="submit" class="btn btn-sm">+ إضافة</button>
+                        </form>
+                    </div>
+                </details>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="color:var(--text-muted); font-size:.9rem;">لم تُضِف أي تصنيف بعد. أضف تصنيفاً يدوياً أعلاه، أو استورده من ملف تارغيت+كاتيغوري بالأسفل.</p>
+            {% endif %}
+        </div>
+
+        <div class="card">
+            <div class="card-title">استيراد من ملف تارغيت + كاتيغوري</div>
+            <p style="color:var(--text-muted); font-size:.85rem; margin-top:-6px;">يضيف التصنيفات والأصناف الجديدة الموجودة في الملف، دون حذف ما هو موجود حالياً.</p>
+            <form hx-post="{% url 'tracking:import_targets' upload.pk %}"
+                  hx-target="#dashboard-content" hx-swap="outerHTML"
+                  hx-encoding="multipart/form-data">
+                {% csrf_token %}
+                <div class="field">
+                    {{ import_form.targets_file }}
+                </div>
+                <button type="submit" class="btn btn-block">استيراد الملف</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ================= Results ================= -->
+    <div>
+        {% for cat in report.categories %}
+        {% if cat.total_qty > 0 %}
+        <div class="result-category">
+            <div class="result-category-head">
+                <div>
+                    <h3>{{ cat.category.name }}</h3>
+                    <div class="qty">{{ cat.total_qty|qty }} عبوة إجمالاً</div>
+                </div>
+                <div style="min-width:180px; text-align:left;">
+                    <span class="pct-badge {{ cat.target_pct|pct_class }}">التزام {{ cat.target_pct|pct }}%</span>
+                    <div class="compliance-bar"><div class="fill" style="width:{{ cat.target_pct|pct }}%"></div></div>
+                </div>
+            </div>
+            <div class="result-body">
+                <div class="result-tables">
+                    <div>
+                        <div class="table-title">الأصناف ضمن هذا التصنيف</div>
+                        <table class="data-table">
+                            <thead><tr><th>الصنف</th><th>الكمية</th><th>%</th></tr></thead>
+                            <tbody>
+                            {% for item in cat.sorted_items %}
+                            <tr class="{% if item.is_target %}is-target{% endif %}">
+                                <td>{{ item.item_name }}{% if item.is_target %}<span class="badge-target">مستهدف</span>{% endif %}</td>
+                                <td>{{ item.quantity|qty }}</td>
+                                <td>{% widthratio item.quantity cat.total_qty 100 %}%</td>
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div>
+                        <div class="table-title">حسب الصيدلية</div>
+                        <table class="data-table">
+                            <thead><tr><th>الصيدلية</th><th>مستهدف</th><th>بديل</th><th>التزام%</th></tr></thead>
+                            <tbody>
+                            {% for ph in cat.sorted_pharmacies %}
+                            <tr>
+                                <td>{{ ph.pharmacy_name }}</td>
+                                <td>{{ ph.target_qty|qty }}</td>
+                                <td>{{ ph.alt_qty|qty }}</td>
+                                <td><span class="pct-badge {{ ph.target_pct|pct_class }}">{{ ph.target_pct|pct }}%</span></td>
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+
+        {% if not report.categories %}
+        <div class="card empty-state">
+            <p>أضف تصنيفاً واحداً على الأقل من العمود المقابل لرؤية النتيجة هنا.</p>
+        </div>
+        {% endif %}
+
+        {% if report.untagged_target_sales %}
+        <div class="diagnostics">
+            <h4>⚠ أصناف مستهدفة بيعت لكن دون وسم تصنيف في ملف موسع</h4>
+            <p style="margin:0 0 8px; font-size:.85rem; color:#7c4a06;">
+                تم احتسابها ضمن التصنيف المستهدف بشكل صحيح أعلاه، لكن يُستحسن تحديث عمود «الشروحات 5» في ملف موسع القادم لهذه الأصناف حتى تنعكس أيضاً أصنافها البديلة إن وُجدت.
+            </p>
+            <ul>
+                {% for row in report.untagged_target_sales %}
+                <li>{{ row.item_name }} — {{ row.quantity|qty }} عبوة</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+</div>
+</div>

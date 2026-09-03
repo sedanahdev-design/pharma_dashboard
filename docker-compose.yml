@@ -1,0 +1,19 @@
+services:
+  web:
+    build: .
+    image: pharma-category-dashboard:latest
+    container_name: pharma-category-dashboard
+    restart: unless-stopped
+    ports:
+      - "8060:8060"
+    environment:
+      DJANGO_SECRET_KEY: "${DJANGO_SECRET_KEY:-change-this-secret-in-production}"
+      DJANGO_DEBUG: "0"
+      DJANGO_ALLOWED_HOSTS: "*"
+      DJANGO_TIME_ZONE: "Asia/Baghdad"
+      SEED_DEMO: "1"
+    volumes:
+      - pharma_data:/app/data
+
+volumes:
+  pharma_data:
