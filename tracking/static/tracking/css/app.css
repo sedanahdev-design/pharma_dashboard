@@ -153,6 +153,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--p
 .pct-badge.good { background: var(--success-bg); color: var(--success); }
 .pct-badge.warn { background: #fff7ed; color: #c2410c; }
 .pct-badge.bad { background: var(--danger-bg); color: var(--danger); }
+.pct-badge.muted { background: #eef2f7; color: #475569; }
 
 /* ---------- upload list ---------- */
 .upload-grid { display: grid; gap: 14px; }
@@ -164,7 +165,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--p
 /* ---------- category editor ---------- */
 .category-editor-list { display: flex; flex-direction: column; gap: 10px; max-height: 640px; overflow-y: auto; padding-inline-end: 4px; }
 .category-editor-item { border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-alt); }
-.category-editor-item > summary { cursor: pointer; padding: 12px 14px; font-weight: 700; display: flex; align-items: center; justify-content: space-between; list-style: none; }
+.category-editor-item > summary { cursor: pointer; padding: 12px 14px; font-weight: 700; display: flex; align-items: center; justify-content: space-between; gap: 8px; list-style: none; }
 .category-editor-item > summary::-webkit-details-marker { display: none; }
 .category-editor-item .count-chip { background: var(--primary-light); color: #fff; font-size: .72rem; font-weight: 700; padding: 1px 9px; border-radius: 999px; margin-inline-start: 8px; }
 .category-editor-body { padding: 0 14px 14px; }
@@ -201,3 +202,125 @@ table.data-table tr:last-child td { border-bottom: none; }
 @media (max-width: 980px) { .two-col { grid-template-columns: 1fr; } }
 
 .htmx-request { opacity: .6; pointer-events: none; }
+
+/* ---------- search bar ---------- */
+.search-bar-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 10px 16px;
+    margin-bottom: 18px;
+}
+.search-icon { font-size: 1rem; opacity: .6; }
+#global-search {
+    flex: 1;
+    border: none;
+    padding: 6px 2px;
+    font-size: .96rem;
+    background: transparent;
+}
+#global-search:focus { outline: none; box-shadow: none; }
+.search-hint { color: var(--text-muted); font-size: .78rem; white-space: nowrap; }
+@media (max-width: 700px) { .search-hint { display: none; } }
+
+/* ---------- category <-> result linking ---------- */
+.jump-btn { white-space: nowrap; font-size: .74rem; font-weight: 700; color: var(--primary-light); background: var(--info-bg); padding: 3px 9px; border-radius: 999px; }
+.jump-btn:hover { background: var(--primary-light); color: #fff; }
+
+@keyframes flash-highlight-anim {
+    0%, 100% { box-shadow: var(--shadow); }
+    30% { box-shadow: 0 0 0 4px rgba(217, 119, 6, .45); }
+}
+.flash-highlight { animation: flash-highlight-anim 1.4s ease; }
+
+.table-scroll { overflow-x: auto; }
+.no-price { color: var(--text-muted); font-size: .78rem; font-style: italic; }
+
+#toast {
+    position: fixed;
+    bottom: 24px;
+    inset-inline-start: 50%;
+    transform: translateX(-50%);
+    background: var(--primary-dark);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 999px;
+    font-size: .86rem;
+    box-shadow: var(--shadow-md);
+    z-index: 50;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s ease;
+}
+#toast.show { opacity: 1; }
+
+/* ---------- login ---------- */
+.login-page { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: linear-gradient(160deg, #1f3864 0%, #2f5496 55%, #3c6bb8 100%); }
+.login-box { background: var(--surface); width: min(400px, 92vw); padding: 30px 28px 24px; border-radius: var(--radius); box-shadow: 0 18px 40px rgba(16,24,40,.28); }
+.login-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+.login-brand strong { display: block; font-size: 1.05rem; }
+.login-brand small { color: var(--text-muted); font-size: .78rem; }
+.login-box .field label { display: block; font-weight: 600; font-size: .85rem; margin-bottom: 6px; }
+.login-box input[type=text], .login-box input[type=password] { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: .95rem; font-family: inherit; }
+.login-box input:focus { outline: none; border-color: var(--primary-light); box-shadow: 0 0 0 3px rgba(47,84,150,.15); }
+.login-note { color: var(--text-muted); font-size: .78rem; text-align: center; margin: 18px 0 0; }
+
+/* ---------- top bar account ---------- */
+.user-chip { background: rgba(255,255,255,.14); color: #eaf0fa; font-size: .78rem; font-weight: 600; padding: 3px 12px; border-radius: 999px; }
+.logout-form { display: inline; margin: 0; }
+.logout-btn { color: #dfe7f5; border-color: rgba(255,255,255,.3); }
+.logout-btn:hover { color: #fff; border-color: #fff; }
+
+/* ---------- home service picker ---------- */
+.service-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+.service-card { display: block; color: inherit; text-decoration: none; transition: transform .12s ease, box-shadow .12s ease; }
+.service-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.service-card h3 { margin: 0 0 8px; color: var(--primary); }
+.service-card p { color: var(--text-muted); font-size: .9rem; margin: 0 0 16px; }
+
+/* ---------- pharmacies & memos ---------- */
+.center-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px; margin-bottom: 14px; }
+.center-choice { display: flex; align-items: center; gap: 8px; background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; font-size: .86rem; cursor: pointer; }
+.center-choice:hover { border-color: var(--primary-light); }
+.memo-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: var(--success-bg); border: 1px solid #bbf7d0; border-radius: var(--radius-sm); padding: 10px 12px; margin-top: 10px; }
+.memo-history { margin-top: 8px; font-size: .82rem; color: var(--text-muted); }
+.memo-history ul { margin: 6px 0 0; padding-inline-start: 18px; }
+.memo-upload-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); }
+.memo-upload-form input[type=text] { flex: 1; min-width: 140px; padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: inherit; }
+
+/* ---------- pharmacy tabs on the result page ---------- */
+.pharmacy-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 12px; margin-bottom: 4px; }
+.ph-tab { flex: 0 0 auto; display: block; padding: 9px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text); text-decoration: none; min-width: 132px; border-top: 3px solid var(--border); }
+.ph-tab:hover { border-color: var(--primary-light); }
+.ph-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.ph-tab.active .ph-tab-meta { color: #cfe0fa; }
+.ph-tab-name { display: block; font-weight: 700; font-size: .88rem; white-space: nowrap; }
+.ph-tab-meta { display: block; font-size: .74rem; color: var(--text-muted); margin-top: 2px; }
+.ph-tab.state-ok { border-top-color: #22c55e; }
+.ph-tab.state-slow { border-top-color: var(--accent); }
+.ph-tab.state-warn { border-top-color: #f97316; }
+.ph-tab.state-no-memo, .ph-tab.state-no-movements { border-top-color: var(--danger); }
+
+/* ---------- result table row states ---------- */
+.result-table td { text-align: center; white-space: nowrap; }
+.result-table td.name-cell { text-align: right; white-space: normal; min-width: 240px; }
+.result-table td.state-cell { font-size: .76rem; color: var(--text-muted); white-space: normal; min-width: 130px; }
+.result-table th { text-align: center; white-space: nowrap; }
+.result-table tr.row-idle td { background: #f7f8fa; }
+.result-table tr.row-dead td { background: #f3effa; }
+.result-table tr.row-warn td { background: #fff5e6; }
+.result-table tr.row-bad td { background: var(--danger-bg); }
+.result-table tr.row-done td { background: var(--success-bg); }
+.result-table tr.row-extra td { background: #fffbe6; }
+.stat-box .value-warn { color: var(--accent); }
+.notes-box { background: var(--info-bg); border: 1px solid #cfe2f3; border-radius: var(--radius); padding: 12px 16px; margin-top: 12px; }
+.notes-box ul { margin: 0; padding-inline-start: 18px; font-size: .86rem; color: #2a4a70; }
+/* Cost-centre names are Arabic text, not code: a monospace face renders
+   them with broken letter joining, so keep the UI font and use a tint to
+   signal "this string must match the file exactly". */
+code { font-family: inherit; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; font-size: .86rem; }

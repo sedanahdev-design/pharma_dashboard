@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}رفع كشف حركات{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>رفع كشف حركات</h1>
+        <p>الملف العام الذي يحتوي كل المبيعات والمردودات والمناقلات لكل الصيدليات.</p>
+    </div>
+    <a href="{% url 'reconcile:batch_list' %}" class="btn">رجوع</a>
+</div>
+
+<div class="card" style="max-width: 720px;">
+    <form method="post" enctype="multipart/form-data" novalidate>
+        {% csrf_token %}
+        {% for field in form %}
+        <div class="field">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.help_text %}<small class="help">{{ field.help_text }}</small>{% endif %}
+            {{ field.errors }}
+        </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary">رفع وبدء المطابقة</button>
+    </form>
+</div>
+
+<div class="card" style="max-width: 720px;">
+    <div class="card-title">أي ملفات أرفع؟</div>
+    <p style="font-size:.9rem; margin-top:0;">
+        اختر <strong>الملفين معاً</strong> في نفس الحقل (Ctrl/Cmd أثناء الاختيار)، ويميّز التطبيق
+        بينهما من أعمدة كل ملف — لا يهم ترتيب اختيارهما:
+    </p>
+    <ul style="margin:0 0 14px; padding-inline-start:18px; font-size:.9rem;">
+        <li><strong>ملف الموسع</strong> — المبيعات والمردودات. يُعرف بعموده «مركز الكلفة».</li>
+        <li><strong>كشف المناقلات</strong> — يُعرف بوجود عمودين للمركز: <strong>من مركز</strong>
+            و<strong>إلى مركز</strong>. كل سطر يُحتسب نقصاً عند المرسل وزيادة عند المستلم.</li>
+    </ul>
+    <div class="alert alert-error" style="margin:0; font-size:.88rem;">
+        <strong>مهم:</strong> ملف الموسع لا يحتوي أي مناقلة — أنواع حركاته هي «مبيع» و«مردود مبيع» فقط.
+        فإذا رفعت الموسع وحده، سيبقى عمود «الكمية المتناقلة» صفراً في كل الأسطر، والتطبيق سينبّهك
+        بذلك أعلى صفحة النتيجة بدل أن يتركك تظن أن المناقلات معدومة فعلاً.
+    </div>
+</div>
+
+<div class="card" style="max-width: 720px;">
+    <div class="card-title">ما الذي يقرأه التطبيق من هذه الملفات؟</div>
+    <ul style="margin:0; padding-inline-start:18px; font-size:.9rem; color:var(--text-muted);">
+        <li><strong>الرقم</strong> — رقم الصنف، وهو مفتاح المطابقة الأول. إن غاب عن المذكرة (كما في
+            بعض الملفات) تتم المطابقة باسم الصنف تلقائياً.</li>
+        <li><strong>مركز الكلفة</strong> — اسم الصيدلية، يجب أن يطابق ما عرّفته حرفياً.</li>
+        <li><strong>عبوة</strong> — الكمية بإشارتها كما هي: المردود مكتوب أصلاً بالسالب فيُطرح تلقائياً.</li>
+        <li><strong>نوع الفاتورة</strong> — مبيع / مردود مبيع / مناقلة، لفصل المبيع عن المناقلة في النتيجة.</li>
+    </ul>
+</div>
+{% endblock %}

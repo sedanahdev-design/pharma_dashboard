@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تسجيل الدخول — لوحة الصيدليات</title>
+<link rel="stylesheet" href="{% load static %}{% static 'tracking/css/app.css' %}">
+</head>
+<body class="login-page">
+<div class="login-box">
+    <div class="login-brand">
+        <span class="brand-mark">Rx</span>
+        <div>
+            <strong>لوحة الصيدليات</strong>
+            <small>متابعة التصنيفات · مطابقة المذكرات</small>
+        </div>
+    </div>
+
+    {% if form.errors %}
+    <div class="alert alert-error">اسم المستخدم أو كلمة المرور غير صحيحة.</div>
+    {% endif %}
+    {% if next and user.is_authenticated %}
+    <div class="alert alert-error">حسابك لا يملك صلاحية على هذه الصفحة.</div>
+    {% endif %}
+
+    <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="field">
+            <label for="id_username">اسم المستخدم</label>
+            <input type="text" name="username" id="id_username" autofocus required autocomplete="username">
+        </div>
+        <div class="field">
+            <label for="id_password">كلمة المرور</label>
+            <input type="password" name="password" id="id_password" required autocomplete="current-password">
+        </div>
+        <input type="hidden" name="next" value="{{ next }}">
+        <button type="submit" class="btn btn-primary btn-block">دخول</button>
+    </form>
+
+    <p class="login-note">كل حساب يرى بياناته فقط. إن نسيت كلمة المرور راجع مدير النظام.</p>
+</div>
+</body>
+</html>

@@ -3,20 +3,33 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{% block title %}متابعة التزام الصيدليات بالتصنيفات{% endblock %}</title>
+<title>{% block title %}لوحة الصيدليات{% endblock %}</title>
 <link rel="stylesheet" href="{% load static %}{% static 'tracking/css/app.css' %}">
 <script src="{% static 'tracking/js/htmx.min.js' %}" defer></script>
+<script src="{% static 'tracking/js/dashboard.js' %}" defer></script>
 </head>
 <body>
 <header class="topbar">
     <div class="wrap topbar-inner">
-        <a href="{% url 'tracking:upload_list' %}" class="brand">
+        <a href="{% url 'home' %}" class="brand">
             <span class="brand-mark">Rx</span>
-            <span class="brand-text">متابعة التصنيفات الدوائية</span>
+            <span class="brand-text">لوحة الصيدليات</span>
         </a>
         <nav class="topnav">
-            <a href="{% url 'tracking:upload_list' %}">الدفعات الشهرية</a>
-            <a href="{% url 'tracking:upload_create' %}" class="btn btn-primary btn-sm">+ رفع شهر جديد</a>
+            {% if CAN_TRACKING %}
+            <a href="{% url 'tracking:upload_list' %}">متابعة التصنيفات</a>
+            {% endif %}
+            {% if CAN_RECONCILE %}
+            <a href="{% url 'reconcile:batch_list' %}">مطابقة المذكرات</a>
+            <a href="{% url 'reconcile:pharmacy_list' %}">الصيدليات والمذكرات</a>
+            {% endif %}
+            {% if user.is_authenticated %}
+            <span class="user-chip" title="الحساب الحالي">{{ USER_LABEL }}</span>
+            <form method="post" action="{% url 'logout' %}" class="logout-form">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-ghost logout-btn">خروج</button>
+            </form>
+            {% endif %}
         </nav>
     </div>
 </header>
@@ -34,7 +47,10 @@
 </main>
 
 <footer class="site-footer">
-    <div class="wrap">لوحة داخلية لمتابعة التزام الصيدليات بالأصناف المستهدفة شهرياً</div>
+    <div class="wrap">
+        لوحة داخلية لمتابعة الصيدليات
+        <span style="opacity:.6;">— الإصدار {{ APP_VERSION }}</span>
+    </div>
 </footer>
 </body>
 </html>

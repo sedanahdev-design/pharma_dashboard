@@ -44,7 +44,9 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "accounts",
     "tracking",
+    "reconcile",
 ]
 
 MIDDLEWARE = [
@@ -54,6 +56,12 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # Makes every view login-only by default, so a page added later is
+    # private unless it explicitly opts out - the safe direction for an
+    # app whose entire content is two clients' private data. (Written
+    # here rather than using Django 5.1's LoginRequiredMiddleware so the
+    # pinned Django 5.0 in requirements.txt doesn't have to move.)
+    "accounts.middleware.LoginRequiredMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -71,6 +79,8 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "tracking.context_processors.app_version",
+                "accounts.context_processors.services",
             ],
         },
     },
@@ -92,8 +102,13 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-# Arabic, right-to-left interface as requested.
+# Arabic, right-to-left interface as requested. FORMAT_MODULE_PATH
+# points at config/formats/ar/formats.py, which restores "." as the
+# decimal separator - Django's stock ar locale writes 29.83 as "29,83",
+# which reads as a thousands separator next to the source spreadsheets.
 LANGUAGE_CODE = "ar"
+FORMAT_MODULE_PATH = ["config.formats"]
+USE_THOUSAND_SEPARATOR = False
 TIME_ZONE = os.environ.get("DJANGO_TIME_ZONE", "Asia/Baghdad")
 USE_I18N = True
 USE_TZ = True
@@ -112,4 +127,19 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 DATA_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
 
-LOGIN_URL = "/admin/login/"
+# Everything in this app is private data belonging to one account or the
+# other, so there is no anonymous page at all beyond the login form
+# itself (enforced by LoginRequiredMiddleware above, not by remembering
+# to decorate every view).
+LOGIN_URL = "login"
+LOGIN_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "login"
+
+# A session lasts a day of *inactivity* (refreshed on every request), so
+# a long working session is never interrupted mid-upload but a machine
+# left alone overnight asks for the password again.
+SESSION_COOKIE_AGE = 60 * 60 * 24
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+CSRF_COOKIE_HTTPONLY = False
+SESSION_COOKIE_SAMESITE = "Lax"

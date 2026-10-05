@@ -12,6 +12,12 @@ services:
       DJANGO_ALLOWED_HOSTS: "*"
       DJANGO_TIME_ZONE: "Asia/Baghdad"
       SEED_DEMO: "1"
+      # الحساب الأول: الخدمتان معاً (متابعة التصنيفات + مطابقة المذكرات)
+      APP_OWNER_USERNAME: "${APP_OWNER_USERNAME:-admin}"
+      APP_OWNER_PASSWORD: "${APP_OWNER_PASSWORD:-}"
+      # الحساب الثاني: متابعة التصنيفات فقط
+      APP_SECOND_USERNAME: "${APP_SECOND_USERNAME:-user2}"
+      APP_SECOND_PASSWORD: "${APP_SECOND_PASSWORD:-}"
     volumes:
       - pharma_data:/app/data
 

@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}الصيدليات والمذكرات{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>الصيدليات والمذكرات</h1>
+        <p>مذكرة كل صيدلية تُرفع مرة واحدة وتبقى محفوظة. عند صدور مذكرة جديدة ارفعها هنا وتصبح هي المعتمدة تلقائياً.</p>
+    </div>
+    <a href="{% url 'reconcile:batch_list' %}" class="btn">كشوف الحركات</a>
+</div>
+
+{% if suggested %}
+<div class="card">
+    <div class="card-title">مراكز كلفة موجودة في كشف الحركات وغير معرَّفة عندك ({{ suggested|length }})</div>
+    <p style="color:var(--text-muted); font-size:.88rem; margin-top:0;">
+        أضفها من هنا بدل كتابتها يدوياً — أي اختلاف بحرف واحد يجعل مذكرة الصيدلية تُطابَق مع لا شيء.
+    </p>
+    <form method="post" action="{% url 'reconcile:pharmacy_import' %}">
+        {% csrf_token %}
+        <div class="center-choices">
+            {% for value, label in import_form.centers.field.choices %}
+            <label class="center-choice">
+                <input type="checkbox" name="centers" value="{{ value }}" checked>
+                <span>{{ label }}</span>
+            </label>
+            {% endfor %}
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">إضافة المحدد</button>
+    </form>
+</div>
+{% endif %}
+
+<div class="two-col">
+    <div class="card">
+        <div class="card-title">إضافة صيدلية يدوياً</div>
+        <form method="post" action="{% url 'reconcile:pharmacy_create' %}" novalidate>
+            {% csrf_token %}
+            {% for field in form %}
+            <div class="field">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}<small class="help">{{ field.help_text }}</small>{% endif %}
+                {{ field.errors }}
+            </div>
+            {% endfor %}
+            <button type="submit" class="btn btn-primary btn-block">إضافة</button>
+        </form>
+    </div>
+
+    <div>
+        {% if pharmacies %}
+        {% for pharmacy in pharmacies %}
+        <div class="card">
+            <div class="card-title">
+                <span>{{ pharmacy.label }}</span>
+                <form method="post" action="{% url 'reconcile:pharmacy_delete' pharmacy.pk %}"
+                      onsubmit="return confirm('حذف {{ pharmacy.label }} مع كل مذكراتها؟');">
+                    {% csrf_token %}
+                    <button class="icon-btn" type="submit" title="حذف الصيدلية">✕</button>
+                </form>
+            </div>
+            <div class="meta" style="color:var(--text-muted); font-size:.84rem;">
+                مركز الكلفة: <code>{{ pharmacy.cost_center }}</code>
+            </div>
+
+            {% with memo=pharmacy.current_memo %}
+            {% if memo %}
+            <div class="memo-line">
+                <div>
+                    <strong>المذكرة المعتمدة{% if memo.number %} رقم {{ memo.number }}{% endif %}</strong>
+                    <div class="meta" style="color:var(--text-muted); font-size:.82rem;">
+                        {{ memo.item_count }} بند · {{ memo.total_pieces|floatformat:2 }} قطعة ·
+                        رُفعت {{ memo.uploaded_at|date:"Y/m/d" }}
+                        {% if memo.source_filename %} · {{ memo.source_filename }}{% endif %}
+                    </div>
+                </div>
+                <form method="post" action="{% url 'reconcile:memo_delete' memo.pk %}"
+                      onsubmit="return confirm('حذف هذه المذكرة؟ ستُستخدم المذكرة الأقدم إن وُجدت.');">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-danger" type="submit">حذف المذكرة</button>
+                </form>
+            </div>
+            {% if pharmacy.memos.count > 1 %}
+            <details class="memo-history">
+                <summary>مذكرات سابقة ({{ pharmacy.memos.count|add:"-1" }})</summary>
+                <ul>
+                    {% for old in pharmacy.memos.all %}
+                        {% if old.pk != memo.pk %}
+                        <li>رقم {{ old.number|default:"-" }} — {{ old.item_count }} بند — {{ old.uploaded_at|date:"Y/m/d" }}</li>
+                        {% endif %}
+                    {% endfor %}
+                </ul>
+            </details>
+            {% endif %}
+            {% else %}
+            <div class="alert alert-error" style="margin-top:10px;">لا توجد مذكرة لهذه الصيدلية — لن تظهر في نتيجة المطابقة.</div>
+            {% endif %}
+            {% endwith %}
+
+            <form method="post" action="{% url 'reconcile:memo_upload' pharmacy.pk %}"
+                  enctype="multipart/form-data" class="memo-upload-form">
+                {% csrf_token %}
+                <input type="file" name="memo_file" accept=".xlsx,.xlsm" required>
+                <input type="text" name="note" placeholder="ملاحظة (اختياري)">
+                <button type="submit" class="btn btn-sm btn-primary">رفع مذكرة جديدة</button>
+            </form>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="empty-state card">
+            <h3>لا توجد صيدليات بعد</h3>
+            <p>أضفها من القائمة المقترحة بعد رفع كشف حركات، أو يدوياً من النموذج المجاور.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

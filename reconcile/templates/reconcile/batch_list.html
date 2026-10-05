@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}مطابقة المذكرات{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>مطابقة المذكرات</h1>
+        <p>كل كشف حركات تَرفعه يُقارَن مع مذكرة كل صيدلية لتعرف ما بيع فعلاً وما بقي.</p>
+    </div>
+    <div style="display:flex; gap:8px;">
+        <a href="{% url 'reconcile:pharmacy_list' %}" class="btn">الصيدليات والمذكرات</a>
+        <a href="{% url 'reconcile:batch_create' %}" class="btn btn-primary">+ رفع كشف حركات</a>
+    </div>
+</div>
+
+<div class="stat-row">
+    <div class="stat-box">
+        <div class="label">الصيدليات المعرَّفة</div>
+        <div class="value">{{ pharmacy_count }}</div>
+    </div>
+    <div class="stat-box">
+        <div class="label">المذكرات المرفوعة</div>
+        <div class="value">{{ memo_count }}</div>
+        <div class="sub">تُستخدم آخر مذكرة لكل صيدلية</div>
+    </div>
+    <div class="stat-box">
+        <div class="label">كشوف الحركات</div>
+        <div class="value">{{ batches|length }}</div>
+    </div>
+</div>
+
+{% if pharmacy_count == 0 or memo_count == 0 %}
+<div class="alert alert-info">
+    ابدأ من <a href="{% url 'reconcile:pharmacy_list' %}">الصيدليات والمذكرات</a>:
+    عرّف الصيدليات وارفع مذكرة كل واحدة، ثم ارفع كشف الحركات. المذكرة تبقى محفوظة
+    ولا تحتاج رفعها مرة أخرى إلا عند صدور مذكرة جديدة.
+</div>
+{% endif %}
+
+{% if batches %}
+<div class="upload-grid">
+    {% for batch in batches %}
+    <div class="card upload-card">
+        <div>
+            <a href="{{ batch.get_absolute_url }}"><strong>{{ batch.name }}</strong></a>
+            <div class="meta">
+                {{ batch.row_count }} حركة ·
+                {{ batch.cost_centers|length }} مركز كلفة ·
+                رُفع {{ batch.uploaded_at|date:"Y/m/d H:i" }}
+                {% if batch.period_text %} · {{ batch.period_text }}{% endif %}
+            </div>
+        </div>
+        <div class="actions">
+            <a href="{{ batch.get_absolute_url }}" class="btn btn-sm">فتح النتيجة</a>
+            <a href="{% url 'reconcile:batch_export' batch.pk %}" class="btn btn-sm btn-accent">تحميل Excel</a>
+            <form method="post" action="{% url 'reconcile:batch_delete' batch.pk %}"
+                  onsubmit="return confirm('حذف هذا الكشف نهائياً؟ (المذكرات لا تُحذف)');">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-danger" type="submit">حذف</button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state card">
+    <h3>لا يوجد كشف حركات بعد</h3>
+    <p>ارفع ملف كشف الحركات العام (الذي يحتوي عمود مركز الكلفة) لتبدأ المطابقة.</p>
+    <a href="{% url 'reconcile:batch_create' %}" class="btn btn-primary">رفع كشف حركات</a>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Category, MonthlyUpload, SalesRow, TargetItem
+from .models import Category, ItemPrice, MonthlyUpload, SalesRow, TargetItem
 
 
 class TargetItemInline(admin.TabularInline):
@@ -32,3 +32,11 @@ class SalesRowAdmin(admin.ModelAdmin):
     list_display = ("item_name", "pharmacy_name", "quantity", "raw_category", "upload")
     list_filter = ("upload", "pharmacy_name")
     search_fields = ("item_name", "raw_category")
+
+
+@admin.register(ItemPrice)
+class ItemPriceAdmin(admin.ModelAdmin):
+    list_display = ("item_name", "unit_price", "upload")
+    list_filter = ("upload",)
+    search_fields = ("item_name",)
+    list_editable = ("unit_price",)

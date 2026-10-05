@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}الرئيسية — لوحة الصيدليات{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>أهلاً {{ USER_LABEL }}</h1>
+        <p>اختر الخدمة التي تريد العمل عليها.</p>
+    </div>
+</div>
+
+{% if not can_tracking and not can_reconcile %}
+<div class="empty-state card">
+    <h3>لا توجد خدمات مفعّلة لحسابك</h3>
+    <p>راجع مدير النظام لتفعيل الخدمة المناسبة لك.</p>
+</div>
+{% endif %}
+
+<div class="service-grid">
+    {% if can_tracking %}
+    <a class="card service-card" href="{% url 'tracking:upload_list' %}">
+        <h3>متابعة التصنيفات</h3>
+        <p>رفع ملف موسع الشهري ومتابعة التزام كل صيدلية بالأصناف المستهدفة لكل تصنيف.</p>
+        <span class="btn btn-primary btn-sm">فتح الخدمة</span>
+    </a>
+    {% endif %}
+    {% if can_reconcile %}
+    <a class="card service-card" href="{% url 'reconcile:batch_list' %}">
+        <h3>مطابقة المذكرات</h3>
+        <p>مقارنة كشف الحركات العام مع مذكرة كل صيدلية: ما بيع فعلاً، وما بقي، ومن عنده مشكلة.</p>
+        <span class="btn btn-primary btn-sm">فتح الخدمة</span>
+    </a>
+    {% endif %}
+</div>
+{% endblock %}

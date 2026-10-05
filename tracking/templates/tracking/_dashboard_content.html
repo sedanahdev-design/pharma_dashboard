@@ -1,6 +1,12 @@
 {% load tracking_extras %}
 <div id="dashboard-content">
 
+<div class="search-bar-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="search" id="global-search" placeholder="ابحث عن صنف، تصنيف، أو اسم صيدلية...">
+    <span class="search-hint">يبحث في التصنيفات وأصنافها والصيدليات معاً</span>
+</div>
+
 <div class="stat-row">
     <div class="stat-box">
         <div class="label">الكمية المتتبعة (ضمن تصنيفات)</div>
@@ -8,15 +14,23 @@
         <div class="sub">من إجمالي {{ report.grand_total_qty|qty }} عبوة في الملف</div>
     </div>
     <div class="stat-box">
-        <div class="label">من الصنف المستهدف</div>
+        <div class="label">من الصنف المستهدف (كمية)</div>
         <div class="value">{{ report.total_target_qty|qty }}</div>
-        <div class="sub">نسبة الالتزام العامة: <span class="pct-badge {{ report.target_pct|pct_class }}">{{ report.target_pct|pct }}%</span></div>
+        <div class="sub">نسبة الالتزام: <span class="pct-badge {{ report.target_pct|pct_class }}">{{ report.target_pct|pct }}%</span></div>
     </div>
+    {% if report.has_prices %}
+    <div class="stat-box">
+        <div class="label">إجمالي القيمة (ل.س.ج)</div>
+        <div class="value">{{ report.total_tracked_value|qty }}</div>
+        <div class="sub">من المستهدف: <span class="pct-badge {{ report.target_value_pct|pct_class }}">{{ report.target_value_pct|pct }}%</span>{% if not report.has_own_prices %} <span class="pct-badge muted" title="لا يوجد ملف أسعار مرفوع لهذا الشهر، فاستُخدمت آخر أسعار معروفة من شهر سابق">أسعار موروثة من شهر سابق</span>{% endif %}</div>
+    </div>
+    {% else %}
     <div class="stat-box">
         <div class="label">من أصناف بديلة أخرى</div>
         <div class="value">{{ report.total_alt_qty|qty }}</div>
         <div class="sub">تحتاج مراجعة لفهم سبب التحويل</div>
     </div>
+    {% endif %}
     <div class="stat-box">
         <div class="label">عدد التصنيفات</div>
         <div class="value">{{ categories|length }}</div>
@@ -25,7 +39,7 @@
 </div>
 
 <div class="two-col">
-    <!-- ================= Category editor ================= -->
+    <!-- ================= Category editor (right side) ================= -->
     <div>
         <div class="card">
             <div class="card-title">التصنيفات المستهدفة لهذا الشهر</div>
@@ -38,9 +52,10 @@
             </form>
 
             {% if categories %}
-            <div class="category-editor-list">
+            <div class="category-editor-list" id="filterable-categories">
                 {% for cat in categories %}
-                <details class="category-editor-item" open>
+                <details class="category-editor-item" open
+                         data-search="{{ cat.name }}{% for item in cat.target_items.all %} {{ item.item_name }}{% endfor %}">
                     <summary>
                         <form class="rename-form"
                               hx-post="{% url 'tracking:category_rename' upload.pk cat.pk %}"
@@ -50,6 +65,8 @@
                             <input type="text" name="name" value="{{ cat.name }}" onchange="this.form.requestSubmit()">
                             <span class="count-chip">{{ cat.target_items.count }} صنف</span>
                         </form>
+                        <button type="button" class="icon-btn jump-btn" title="عرض نتيجة هذا التصنيف"
+                                data-jump-to="result-cat-{{ cat.pk }}" onclick="event.stopPropagation()">↩ عرض النتيجة</button>
                         <form hx-post="{% url 'tracking:category_delete' upload.pk cat.pk %}"
                               hx-target="#dashboard-content" hx-swap="outerHTML"
                               hx-confirm="حذف تصنيف «{{ cat.name }}» بكل أصنافه المستهدفة؟"
@@ -82,6 +99,7 @@
                 </details>
                 {% endfor %}
             </div>
+            <p id="no-category-match" class="empty-state" style="display:none; padding:24px;">لا يوجد تصنيف مطابق للبحث.</p>
             {% else %}
             <p style="color:var(--text-muted); font-size:.9rem;">لم تُضِف أي تصنيف بعد. أضف تصنيفاً يدوياً أعلاه، أو استورده من ملف تارغيت+كاتيغوري بالأسفل.</p>
             {% endif %}
@@ -100,44 +118,79 @@
                 <button type="submit" class="btn btn-block">استيراد الملف</button>
             </form>
         </div>
+
+        <div class="card">
+            <div class="card-title">
+                أسعار الأصناف (ل.س.ج)
+                {% if report.has_own_prices %}<span class="pct-badge good">مُفعَّلة لهذا الشهر</span>
+                {% elif report.has_prices %}<span class="pct-badge muted">موروثة من شهر سابق</span>
+                {% else %}<span class="pct-badge bad">غير متوفرة</span>{% endif %}
+            </div>
+            <p style="color:var(--text-muted); font-size:.85rem; margin-top:-6px;">
+                تُشتق أسعار الأصناف تلقائياً ولا حاجة لرفعها بنفسك: يستخدم التطبيق آخر سعر معروف لكل صنف من أي
+                شهر سابق. لتعديل سعر صنف معيّن يدوياً، هذا متاح من لوحة الإدارة (Django admin).
+            </p>
+        </div>
     </div>
 
-    <!-- ================= Results ================= -->
+    <!-- ================= Results (left side) ================= -->
     <div>
+        <div id="filterable-results">
         {% for cat in report.categories %}
         {% if cat.total_qty > 0 %}
-        <div class="result-category">
+        <div class="result-category" id="result-cat-{{ cat.category.pk }}"
+             data-search="{{ cat.category.name }}{% for item in cat.sorted_items %} {{ item.item_name }}{% endfor %}{% for ph in cat.sorted_pharmacies %} {{ ph.pharmacy_name }}{% endfor %}">
             <div class="result-category-head">
                 <div>
                     <h3>{{ cat.category.name }}</h3>
-                    <div class="qty">{{ cat.total_qty|qty }} عبوة إجمالاً</div>
+                    <div class="qty">
+                        {{ cat.total_qty|qty }} عبوة إجمالاً
+                        {% if report.has_prices %} · إجمالي القيمة: {{ cat.total_value|qty }} {{ "ل.س.ج" }}{% endif %}
+                    </div>
                 </div>
-                <div style="min-width:180px; text-align:left;">
-                    <span class="pct-badge {{ cat.target_pct|pct_class }}">التزام {{ cat.target_pct|pct }}%</span>
+                <div style="min-width:190px; text-align:left;">
+                    <span class="pct-badge {{ cat.target_pct|pct_class }}">التزام كمية {{ cat.target_pct|pct }}%</span>
                     <div class="compliance-bar"><div class="fill" style="width:{{ cat.target_pct|pct }}%"></div></div>
+                    {% if report.has_prices %}
+                    <span class="pct-badge {{ cat.target_value_pct|pct_class }}">التزام قيمة {{ cat.target_value_pct|pct }}%</span>
+                    <div class="compliance-bar"><div class="fill" style="width:{{ cat.target_value_pct|pct }}%"></div></div>
+                    {% endif %}
                 </div>
             </div>
             <div class="result-body">
                 <div class="result-tables">
                     <div>
                         <div class="table-title">الأصناف ضمن هذا التصنيف</div>
+                        <div class="table-scroll">
                         <table class="data-table">
-                            <thead><tr><th>الصنف</th><th>الكمية</th><th>%</th></tr></thead>
+                            <thead><tr>
+                                <th>الصنف</th><th>الكمية</th><th>%</th>
+                                {% if report.has_prices %}<th>السعر (ل.س.ج)</th><th>القيمة (ل.س.ج)</th>{% endif %}
+                            </tr></thead>
                             <tbody>
                             {% for item in cat.sorted_items %}
                             <tr class="{% if item.is_target %}is-target{% endif %}">
                                 <td>{{ item.item_name }}{% if item.is_target %}<span class="badge-target">مستهدف</span>{% endif %}</td>
                                 <td>{{ item.quantity|qty }}</td>
                                 <td>{% widthratio item.quantity cat.total_qty 100 %}%</td>
+                                {% if report.has_prices %}
+                                <td>{% if item.has_price %}{{ item.unit_price|qty }}{% else %}<span class="no-price">—</span>{% endif %}</td>
+                                <td>{% if item.has_price %}{{ item.value|qty }}{% else %}<span class="no-price">بلا سعر</span>{% endif %}</td>
+                                {% endif %}
                             </tr>
                             {% endfor %}
                             </tbody>
                         </table>
+                        </div>
                     </div>
                     <div>
                         <div class="table-title">حسب الصيدلية</div>
+                        <div class="table-scroll">
                         <table class="data-table">
-                            <thead><tr><th>الصيدلية</th><th>مستهدف</th><th>بديل</th><th>التزام%</th></tr></thead>
+                            <thead><tr>
+                                <th>الصيدلية</th><th>مستهدف</th><th>بديل</th><th>التزام%</th>
+                                {% if report.has_prices %}<th>إجمالي القيمة (ل.س.ج)</th>{% endif %}
+                            </tr></thead>
                             <tbody>
                             {% for ph in cat.sorted_pharmacies %}
                             <tr>
@@ -145,16 +198,21 @@
                                 <td>{{ ph.target_qty|qty }}</td>
                                 <td>{{ ph.alt_qty|qty }}</td>
                                 <td><span class="pct-badge {{ ph.target_pct|pct_class }}">{{ ph.target_pct|pct }}%</span></td>
+                                {% if report.has_prices %}<td>{{ ph.total_value|qty }}</td>{% endif %}
                             </tr>
                             {% endfor %}
                             </tbody>
                         </table>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
         {% endif %}
         {% endfor %}
+        </div>
+
+        <p id="no-result-match" class="empty-state" style="display:none; padding:24px;">لا توجد نتيجة مطابقة للبحث.</p>
 
         {% if not report.categories %}
         <div class="card empty-state">
@@ -170,6 +228,20 @@
             </p>
             <ul>
                 {% for row in report.untagged_target_sales %}
+                <li>{{ row.item_name }} — {{ row.quantity|qty }} عبوة</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if report.has_prices and report.items_missing_price %}
+        <div class="diagnostics">
+            <h4>⚠ أصناف مُتتبَّعة بلا سعر معروف</h4>
+            <p style="margin:0 0 8px; font-size:.85rem; color:#7c4a06;">
+                احتُسبت قيمتها صفراً في كل الإجماليات أعلاه. أضف سعرها عبر استيراد ملف أسعار يشملها.
+            </p>
+            <ul>
+                {% for row in report.items_missing_price %}
                 <li>{{ row.item_name }} — {{ row.quantity|qty }} عبوة</li>
                 {% endfor %}
             </ul>

@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}{{ batch.name }} — نتيجة المطابقة{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>{{ batch.name }}</h1>
+        <p>
+            {{ batch.row_count }} حركة · {{ batch.cost_centers|length }} مركز كلفة
+            {% if batch.period_text %} · {{ batch.period_text }}{% endif %}
+        </p>
+    </div>
+    <div style="display:flex; gap:8px;">
+        <a href="{% url 'reconcile:pharmacy_list' %}" class="btn">الصيدليات والمذكرات</a>
+        <a href="{% url 'reconcile:batch_export' batch.pk %}" class="btn btn-accent">تحميل النتيجة Excel</a>
+    </div>
+</div>
+
+<div class="stat-row">
+    <div class="stat-box">
+        <div class="label">الأصناف المطابَقة</div>
+        <div class="value">{{ report.total_items }}</div>
+        <div class="sub">{{ report.with_memo|length }} صيدلية من أصل {{ report.results|length }}</div>
+    </div>
+    <div class="stat-box">
+        <div class="label">أصناف راكدة</div>
+        <div class="value value-warn">{{ report.total_stagnant }}</div>
+        <div class="sub">{{ report.stagnant_pct|floatformat:1 }}% من الأصناف</div>
+    </div>
+    <div class="stat-box">
+        <div class="label">قيمة الراكد</div>
+        <div class="value value-warn">{{ report.total_stagnant_value|floatformat:0 }}</div>
+    </div>
+    <div class="stat-box">
+        <div class="label">أصناف متحركة</div>
+        <div class="value">{{ report.total_moving }}</div>
+        <div class="sub">بقيمة {{ report.total_moving_value|floatformat:0 }}</div>
+    </div>
+    <div class="stat-box">
+        <div class="label">ملاحظات تحتاج انتباهك</div>
+        <div class="value {% if report.problem_count %}value-warn{% endif %}">{{ report.problem_count }}</div>
+    </div>
+</div>
+
+{% if not report.has_transfers %}
+<div class="alert alert-error" style="font-size:.92rem; line-height:1.8;">
+    <strong>لا توجد مناقلات ضمن هذا الكشف.</strong>
+    أنواع الحركات الموجودة في الملفات المرفوعة:
+    {% for t, n in batch.movement_types %}<code>{{ t|default:"بلا نوع" }}</code> ({{ n }}){% if not forloop.last %} · {% endif %}{% endfor %}.
+    عمود «الكمية المتناقلة» صفر في كل الأسطر لأن ملف الموسع يصدّر المبيع والمردود فقط —
+    وهذا غياب بيانات لا نتيجة. ارفع كشف المناقلات من برنامج البيان مع الموسع
+    (<a href="{% url 'reconcile:batch_create' %}">من هنا</a>) لتظهر المناقلات.
+</div>
+{% endif %}
+
+{% if report.problems %}
+<div class="diagnostics">
+    <h4>ملاحظات عامة على هذا الكشف</h4>
+    <ul>{% for problem in report.problems %}<li>{{ problem }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<div class="pharmacy-tabs">
+    {% for result in report.results %}
+    <a href="?p={{ result.pharmacy.pk }}"
+       class="ph-tab state-{{ result.status }}{% if selected and result.pharmacy.pk == selected.pharmacy.pk %} active{% endif %}">
+        <span class="ph-tab-name">{{ result.pharmacy.label }}</span>
+        <span class="ph-tab-meta">
+            {% if not result.has_memo %}بلا مذكرة
+            {% elif not result.in_movements %}بلا حركات
+            {% else %}{{ result.stagnant_pct|floatformat:0 }}% راكد{% endif %}
+        </span>
+    </a>
+    {% endfor %}
+</div>
+
+{% if selected %}
+{% with result=selected %}
+<div class="card">
+    <div class="card-title">
+        <span>{{ result.pharmacy.label }}</span>
+        <span class="meta" style="font-weight:400; color:var(--text-muted); font-size:.82rem;">
+            {{ result.pharmacy.cost_center }}
+            {% if result.memo %} · مذكرة {{ result.memo.number|default:"-" }} · رُفعت {{ result.memo.uploaded_at|date:"Y/m/d" }}{% endif %}
+        </span>
+    </div>
+
+    {% if not result.has_memo %}
+    <div class="alert alert-error">
+        لا توجد مذكرة مرفوعة لهذه الصيدلية، لذلك لم تتم أي مطابقة لها.
+        <a href="{% url 'reconcile:pharmacy_list' %}">ارفع مذكرتها من هنا</a>.
+    </div>
+    {% else %}
+
+    {% if result.problems %}
+    <div class="diagnostics" style="margin-top:0;">
+        <h4>يحتاج مراجعتك</h4>
+        <ul>{% for problem in result.problems %}<li>{{ problem }}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+    {% if result.notes %}
+    <div class="notes-box">
+        <ul>{% for note in result.notes %}<li>{{ note }}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+
+    <div class="stat-row" style="margin-top:16px;">
+        <div class="stat-box"><div class="label">عدد الأصناف</div><div class="value">{{ result.item_count }}</div></div>
+        <div class="stat-box"><div class="label">راكد</div><div class="value value-warn">{{ result.stagnant_count }}</div>
+            <div class="sub">{{ result.stagnant_pct|floatformat:1 }}% بقيمة {{ result.stagnant_value|floatformat:0 }}</div></div>
+        <div class="stat-box"><div class="label">متحرك</div><div class="value">{{ result.moving_count }}</div>
+            <div class="sub">بقيمة {{ result.moving_value|floatformat:0 }}</div></div>
+        <div class="stat-box"><div class="label">إجمالي المباع</div><div class="value">{{ result.total_sold|floatformat:2 }}</div></div>
+        <div class="stat-box"><div class="label">إجمالي المتناقل</div><div class="value">{{ result.total_transfer|floatformat:2 }}</div></div>
+    </div>
+
+    <div class="table-scroll">
+    <table class="data-table result-table">
+        <thead>
+            <tr>
+                <th>اسم الصنف</th>
+                <th>تاريخ الصلاحية</th>
+                <th>الكمية الحالية</th>
+                <th>كلفة وسطية</th>
+                <th>كلفة اجمالية</th>
+                <th>المباعة (صافي)</th>
+                <th>المتناقلة (خارج)</th>
+                <th>المتبقية</th>
+                <th>انباع؟</th>
+                <th>تناقل؟</th>
+                <th>الحالة</th>
+                <th>ملاحظة</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in result.sorted_rows %}
+            <tr class="row-{{ row.state_key }}">
+                <td class="name-cell">{{ row.item_name }}</td>
+                <td>{{ row.expiry_text }}</td>
+                <td>{{ row.quantity|floatformat:"-2" }}</td>
+                <td>{{ row.price|floatformat:"-2" }}</td>
+                <td>{{ row.total_cost|floatformat:"-2" }}</td>
+                <td><strong>{{ row.sold|floatformat:"-2" }}</strong></td>
+                <td><strong>{{ row.transfer_out|floatformat:"-2" }}</strong></td>
+                <td>{{ row.remaining|floatformat:"-2" }}</td>
+                <td>{{ row.sold_flag }}</td>
+                <td>{{ row.transfer_flag }}</td>
+                <td>{% if row.moved %}<span class="pct-badge good">متحرك</span>{% else %}<span class="pct-badge muted">راكد</span>{% endif %}</td>
+                <td class="state-cell">{{ row.note }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+
+    {% if result.extras %}
+    <div class="card-title" style="margin-top:22px;">أصناف خارج المذكرة ({{ result.extras|length }})</div>
+    <p style="color:var(--text-muted); font-size:.86rem; margin-top:0;">
+        تحرّكت في هذه الصيدلية وليست مذكورة في مذكرتها، مرتّبة حسب حجم الحركة.
+        {% if result.extras|length > 100 %}يُعرض هنا أعلى 100 صنف — القائمة كاملة في ملف Excel.{% endif %}
+    </p>
+    <div class="table-scroll">
+    <table class="data-table result-table">
+        <thead><tr><th>رقم الصنف</th><th>اسم الصنف</th><th>المباعة (صافي)</th><th>المتناقلة (خارج)</th></tr></thead>
+        <tbody>
+            {% for extra in result.extras|slice:":100" %}
+            <tr class="row-extra">
+                <td>{{ extra.code }}</td>
+                <td class="name-cell">{{ extra.item_name }}</td>
+                <td>{{ extra.sold|floatformat:"-2" }}</td>
+                <td>{{ extra.transfer_out|floatformat:"-2" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    {% endif %}
+</div>
+{% endwith %}
+{% else %}
+<div class="empty-state card">
+    <h3>لا توجد صيدليات معرَّفة</h3>
+    <p>عرّف صيدلياتك وارفع مذكرة كل واحدة لتظهر النتيجة هنا.</p>
+    <a href="{% url 'reconcile:pharmacy_list' %}" class="btn btn-primary">الصيدليات والمذكرات</a>
+</div>
+{% endif %}
+{% endblock %}

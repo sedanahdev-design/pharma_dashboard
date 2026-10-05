@@ -1,11 +1,25 @@
+from django.conf import settings
 from django.db import models
 from django.urls import reverse
 
 
 class MonthlyUpload(models.Model):
     """One monthly snapshot: a موسع sales workbook plus the set of target
-    categories/items that were in force for that month."""
+    categories/items that were in force for that month.
 
+    `owner` is the root of this service's data isolation: every other
+    model here hangs off MonthlyUpload, so filtering uploads by owner is
+    enough to keep two accounts' months, categories, targets, prices and
+    sales rows completely apart. Every view filters on it - nothing
+    relies on an unguessable primary key."""
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="monthly_uploads",
+        null=True,
+        blank=True,
+    )
     name = models.CharField(
         "اسم الشهر / الدفعة", max_length=200, help_text="مثال: شهر 7 - 2026"
     )
@@ -82,6 +96,28 @@ class TargetItem(models.Model):
 
     def __str__(self):
         return self.item_name
+
+
+class ItemPrice(models.Model):
+    """Unit price (بالليرة السورية الجديدة) for one item, for a given month.
+    Sourced from a price-reference workbook (e.g. the أصناف الأورانج report,
+    which lists quantity + total value per item) or carried forward from a
+    previous month and edited by hand."""
+
+    upload = models.ForeignKey(
+        MonthlyUpload, related_name="item_prices", on_delete=models.CASCADE
+    )
+    item_name = models.CharField(max_length=500, db_index=True)
+    unit_price = models.FloatField("سعر الوحدة (ل.س.ج)", default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("upload", "item_name")
+        verbose_name = "سعر صنف"
+        verbose_name_plural = "أسعار الأصناف"
+
+    def __str__(self):
+        return f"{self.item_name}: {self.unit_price}"
 
 
 class SalesRow(models.Model):
