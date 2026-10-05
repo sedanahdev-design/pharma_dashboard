@@ -163,6 +163,25 @@ Cloudflare Tunnel دون فتح أي منفذ على الراوتر:
 
 ---
 
+## النشر على Render مع قاعدة بيانات Neon
+
+قرص Render يُمسح مع كل نشر أو إعادة تشغيل، لذلك لا يصلح ملف SQLite هناك؛
+تُحفظ البيانات في قاعدة Postgres على Neon ويُمرَّر رابطها عبر `DATABASE_URL`
+(عند غيابه يبقى التطبيق على SQLite كما في Docker المحلي).
+
+1. في Neon: أنشئ مشروعاً جديداً (منطقة AWS Europe Central 1 / Frankfurt)،
+   وانسخ رابط الاتصال **المباشر** (بإطفاء Connection pooling).
+2. في Render: **New → Blueprint** واختر هذا المستودع؛ يقرأ الملف
+   `render.yaml` وينشئ خدمة `pharma-dashboard` واحدة.
+3. أدخل القيم التي يطلبها: `DATABASE_URL` (رابط Neon)، و`APP_OWNER_PASSWORD`
+   و`APP_SECOND_PASSWORD`.
+4. بعد اكتمال النشر افتح `https://<اسم-الخدمة>.onrender.com`.
+
+الخطة المجانية في Render تُنيم الخدمة بعد 15 دقيقة بلا استخدام، فيستغرق
+أول فتح بعدها قرابة دقيقة.
+
+---
+
 ## التشغيل المحلي بدون Docker (للتطوير فقط)
 
 ```bash

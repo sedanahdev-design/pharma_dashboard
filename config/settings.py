@@ -37,6 +37,17 @@ CSRF_TRUSTED_ORIGINS = [
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
 
+# Render sets RENDER_EXTERNAL_HOSTNAME (e.g. pharma-dashboard.onrender.com)
+# and always serves over HTTPS, so trust that origin and keep the login
+# cookies HTTPS-only there without any extra configuration.
+RENDER_EXTERNAL_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
+if RENDER_EXTERNAL_HOSTNAME:
+    if "*" not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+    CSRF_TRUSTED_ORIGINS.append(f"https://{RENDER_EXTERNAL_HOSTNAME}")
+SESSION_COOKIE_SECURE = env_bool("DJANGO_SECURE_COOKIES", default=bool(RENDER_EXTERNAL_HOSTNAME))
+CSRF_COOKIE_SECURE = SESSION_COOKIE_SECURE
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -94,6 +105,25 @@ DATABASES = {
         "NAME": os.environ.get("DJANGO_DB_PATH", str(BASE_DIR / "data" / "db.sqlite3")),
     }
 }
+
+# Hosted deployments (Render + Neon Postgres) pass DATABASE_URL instead:
+# Render's own disk is wiped on every deploy/restart, so a SQLite file
+# there would silently lose every uploaded month. Local Docker keeps
+# using the SQLite file in the data/ volume above.
+if os.environ.get("DATABASE_URL"):
+    import dj_database_url
+
+    DATABASES["default"] = dj_database_url.parse(
+        os.environ["DATABASE_URL"],
+        conn_max_age=600,
+        # Neon suspends idle databases; re-check a kept-alive connection
+        # before reusing it rather than failing the first request after.
+        conn_health_checks=True,
+    )
+    # A pooled (PgBouncer, "-pooler" host) URL can't hold the server-side
+    # cursors that QuerySet.iterator() uses across transactions.
+    if "-pooler" in os.environ["DATABASE_URL"]:
+        DATABASES["default"]["DISABLE_SERVER_SIDE_CURSORS"] = True
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
