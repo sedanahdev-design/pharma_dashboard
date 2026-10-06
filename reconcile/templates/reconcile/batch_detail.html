@@ -20,12 +20,12 @@
     <div class="stat-box">
         <div class="label">الأصناف المطابَقة</div>
         <div class="value">{{ report.total_items }}</div>
-        <div class="sub">{{ report.with_memo|length }} صيدلية من أصل {{ report.results|length }}</div>
+        <div class="sub">{{ report.total_pieces|floatformat:2 }} عبوة · {{ report.with_memo|length }} صيدلية من أصل {{ report.results|length }}</div>
     </div>
     <div class="stat-box">
         <div class="label">أصناف راكدة</div>
         <div class="value value-warn">{{ report.total_stagnant }}</div>
-        <div class="sub">{{ report.stagnant_pct|floatformat:1 }}% من الأصناف</div>
+        <div class="sub">{{ report.total_stagnant_qty|floatformat:2 }} عبوة · {{ report.stagnant_pct|floatformat:1 }}% من الأصناف</div>
     </div>
     <div class="stat-box">
         <div class="label">قيمة الراكد</div>
@@ -34,7 +34,7 @@
     <div class="stat-box">
         <div class="label">أصناف متحركة</div>
         <div class="value">{{ report.total_moving }}</div>
-        <div class="sub">بقيمة {{ report.total_moving_value|floatformat:0 }}</div>
+        <div class="sub">{{ report.total_moving_qty|floatformat:2 }} عبوة · بقيمة {{ report.total_moving_value|floatformat:0 }}</div>
     </div>
     <div class="stat-box">
         <div class="label">ملاحظات تحتاج انتباهك</div>
@@ -105,13 +105,16 @@
     {% endif %}
 
     <div class="stat-row" style="margin-top:16px;">
-        <div class="stat-box"><div class="label">عدد الأصناف</div><div class="value">{{ result.item_count }}</div></div>
+        <div class="stat-box"><div class="label">عدد الأصناف</div><div class="value">{{ result.item_count }}</div>
+            <div class="sub">{{ result.total_pieces|floatformat:2 }} عبوة</div></div>
         <div class="stat-box"><div class="label">راكد</div><div class="value value-warn">{{ result.stagnant_count }}</div>
-            <div class="sub">{{ result.stagnant_pct|floatformat:1 }}% بقيمة {{ result.stagnant_value|floatformat:0 }}</div></div>
+            <div class="sub">{{ result.stagnant_qty|floatformat:2 }} عبوة · {{ result.stagnant_pct|floatformat:1 }}% بقيمة {{ result.stagnant_value|floatformat:0 }}</div></div>
         <div class="stat-box"><div class="label">متحرك</div><div class="value">{{ result.moving_count }}</div>
-            <div class="sub">بقيمة {{ result.moving_value|floatformat:0 }}</div></div>
+            <div class="sub">{{ result.moving_qty|floatformat:2 }} عبوة · بقيمة {{ result.moving_value|floatformat:0 }}</div></div>
         <div class="stat-box"><div class="label">إجمالي المباع</div><div class="value">{{ result.total_sold|floatformat:2 }}</div></div>
         <div class="stat-box"><div class="label">إجمالي المتناقل</div><div class="value">{{ result.total_transfer|floatformat:2 }}</div></div>
+        <div class="stat-box"><div class="label">إجمالي العبوات المتحركة</div><div class="value">{{ result.total_moved_qty|floatformat:2 }}</div>
+            <div class="sub">مباع + متناقل</div></div>
     </div>
 
     <div class="table-scroll">
@@ -125,6 +128,7 @@
                 <th>كلفة اجمالية</th>
                 <th>المباعة (صافي)</th>
                 <th>المتناقلة (خارج)</th>
+                <th>عدد العبوات المتحركة</th>
                 <th>المتبقية</th>
                 <th>انباع؟</th>
                 <th>تناقل؟</th>
@@ -142,6 +146,7 @@
                 <td>{{ row.total_cost|floatformat:"-2" }}</td>
                 <td><strong>{{ row.sold|floatformat:"-2" }}</strong></td>
                 <td><strong>{{ row.transfer_out|floatformat:"-2" }}</strong></td>
+                <td><strong>{{ row.moved_qty|floatformat:"-2" }}</strong></td>
                 <td>{{ row.remaining|floatformat:"-2" }}</td>
                 <td>{{ row.sold_flag }}</td>
                 <td>{{ row.transfer_flag }}</td>
@@ -161,7 +166,7 @@
     </p>
     <div class="table-scroll">
     <table class="data-table result-table">
-        <thead><tr><th>رقم الصنف</th><th>اسم الصنف</th><th>المباعة (صافي)</th><th>المتناقلة (خارج)</th></tr></thead>
+        <thead><tr><th>رقم الصنف</th><th>اسم الصنف</th><th>المباعة (صافي)</th><th>المتناقلة (خارج)</th><th>عدد العبوات المتحركة</th></tr></thead>
         <tbody>
             {% for extra in result.extras|slice:":100" %}
             <tr class="row-extra">
@@ -169,6 +174,7 @@
                 <td class="name-cell">{{ extra.item_name }}</td>
                 <td>{{ extra.sold|floatformat:"-2" }}</td>
                 <td>{{ extra.transfer_out|floatformat:"-2" }}</td>
+                <td><strong>{{ extra.moved_qty|floatformat:"-2" }}</strong></td>
             </tr>
             {% endfor %}
         </tbody>

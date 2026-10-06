@@ -41,7 +41,10 @@ BOLD = Font(bold=True)
 THIN = Side(style="thin", color="D9D9D9")
 BORDER = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
 
-# The reference's own twelve columns, in its own order and wording.
+# The reference's own twelve columns, in its own order and wording, plus
+# two of ours: عدد العبوات المتحركة sits directly after the two columns it
+# adds together, so the arithmetic is visible on the row rather than left
+# to be done by hand, and ملاحظة closes the row.
 COLUMNS = [
     "الصيدلية",
     "اسم الصنف",
@@ -51,14 +54,16 @@ COLUMNS = [
     "كلفة اجمالية",
     "الكمية المباعة (صافي)",
     "الكمية المتناقلة (خارج)",
+    "عدد العبوات المتحركة (مباع + متناقل)",   # added
     "الكمية المتبقية بعد البيع والمناقلة",
     "هل انباع؟",
     "هل تناقل؟",
     "الحالة",
-    # added
-    "ملاحظة",
+    "ملاحظة",                                  # added
 ]
-WIDTHS = [26, 46, 13, 11, 10, 12, 12, 12, 14, 9, 9, 10, 30]
+WIDTHS = [26, 46, 13, 11, 10, 12, 12, 12, 14, 14, 9, 9, 10, 30]
+#: Columns written right-aligned (text); everything else is centred.
+TEXT_COLS = {1, 2, 14}
 
 STATE_FILLS = {"bad": BAD_FILL, "warn": WARN_FILL, "idle": STAGNANT_FILL, "done": MOVING_FILL}
 
@@ -116,6 +121,7 @@ def _row_values(result, row):
         round(row.total_cost, 2),
         row.sold,
         row.transfer_out,
+        row.moved_qty,
         row.remaining,
         row.sold_flag,
         row.transfer_flag,
@@ -132,7 +138,7 @@ def _write_rows(ws, result, start_row):
             cell = ws.cell(row=row_idx, column=col, value=value)
             cell.border = BORDER
             cell.alignment = Alignment(
-                horizontal="right" if col in (1, 2, 13) else "center", vertical="center"
+                horizontal="right" if col in TEXT_COLS else "center", vertical="center"
             )
             if fill is not None:
                 cell.fill = fill
@@ -160,10 +166,17 @@ def build_workbook(report) -> io.BytesIO:
 
 def _comparison_sheet(ws, report):
     ws.title = "مقارنة الصيدليات"
+    # Every "عدد" column is immediately followed by its "كمية" column, so
+    # the item count and the package count for the same group sit side by
+    # side and can never be read as one another.
     headers = [
-        "الصيدلية", "عدد الأصناف كامل", "عدد الأصناف الراكدة", "قيمة الراكد",
-        "عدد الأصناف المتحركة", "قيمة المتحرك", "نسبة الراكد من العدد %",
-        "إجمالي المباع", "إجمالي المتناقل", "الحالة",
+        "الصيدلية",
+        "عدد الأصناف كامل", "كمية العبوات كاملة",
+        "عدد الأصناف الراكدة", "كمية العبوات الراكدة", "قيمة الراكد",
+        "عدد الأصناف المتحركة", "كمية عبوات الأصناف المتحركة", "قيمة المتحرك",
+        "نسبة الراكد من العدد %",
+        "إجمالي المباع", "إجمالي المتناقل", "إجمالي العبوات المتحركة",
+        "الحالة",
     ]
     _title(
         ws,
@@ -171,7 +184,7 @@ def _comparison_sheet(ws, report):
         report.batch.period_text or f"رُفع في {report.batch.uploaded_at:%Y/%m/%d}",
         len(headers),
     )
-    _header(ws, 4, headers, [30, 13, 14, 13, 14, 13, 14, 12, 13, 18])
+    _header(ws, 4, headers, [30, 13, 14, 14, 15, 13, 14, 16, 13, 13, 12, 13, 15, 18])
 
     status_text = {
         "no-memo": ("لا توجد مذكرة", BAD_FILL),
@@ -187,13 +200,17 @@ def _comparison_sheet(ws, report):
         values = [
             result.pharmacy.cost_center,
             result.item_count,
+            round(result.total_pieces, 2),
             result.stagnant_count,
+            round(result.stagnant_qty, 2),
             round(result.stagnant_value, 2),
             result.moving_count,
+            round(result.moving_qty, 2),
             round(result.moving_value, 2),
             round(result.stagnant_pct, 1),
             round(result.total_sold, 2),
             round(result.total_transfer, 2),
+            round(result.total_moved_qty, 2),
             label,
         ]
         for col, value in enumerate(values, start=1):
@@ -205,10 +222,15 @@ def _comparison_sheet(ws, report):
         row_idx += 1
 
     totals = [
-        "الإجمالي", report.total_items, report.total_stagnant,
-        round(report.total_stagnant_value, 2), report.total_moving,
-        round(report.total_moving_value, 2), round(report.stagnant_pct, 1),
-        round(report.total_sold, 2), round(report.total_transfer, 2), "",
+        "الإجمالي",
+        report.total_items, round(report.total_pieces, 2),
+        report.total_stagnant, round(report.total_stagnant_qty, 2),
+        round(report.total_stagnant_value, 2),
+        report.total_moving, round(report.total_moving_qty, 2),
+        round(report.total_moving_value, 2),
+        round(report.stagnant_pct, 1),
+        round(report.total_sold, 2), round(report.total_transfer, 2),
+        round(report.total_moved_qty, 2), "",
     ]
     for col, value in enumerate(totals, start=1):
         cell = ws.cell(row=row_idx, column=col, value=value)
@@ -221,6 +243,8 @@ def _comparison_sheet(ws, report):
     for line in [
         "ملاحظات هامة:",
         "• «راكد» = لم يُبَع ولم يُناقل إطلاقاً خلال فترة الكشف. «متحرك» = بيع أو نوقل.",
+        "• كل عمود «عدد …» يعدّ الأصناف، وبجانبه عمود «كمية …» يجمع العبوات - رقمان مختلفان عمداً.",
+        "• «كمية عبوات الأصناف المتحركة» = ما تملكه الصيدلية من تلك الأصناف بالمذكرة. أما «إجمالي العبوات المتحركة» = ما تحرّك فعلاً منها (المباع + المتناقل).",
         "• الكمية المتبقية = العدد بالمذكرة − المباع − المتناقل. القيمة بالسالب تعني حركة أكبر من الموجود.",
         "• قيمة الراكد والمتحرك محسوبة = العدد × الكلفة الوسطية لكل سطر.",
         "• راجع ورقة «المشاكل والتنبيهات» قبل اعتماد الأرقام.",
@@ -282,7 +306,8 @@ def _pharmacy_sheet(ws, result):
         for extra in result.extras:
             values = [
                 result.pharmacy.cost_center, extra.item_name, "", "", "", "",
-                extra.sold, extra.transfer_out, "",
+                extra.sold, extra.transfer_out,
+                round(extra.sold + extra.transfer_out, 6), "",
                 "نعم" if extra.sold > 0 else "لا",
                 "نعم" if extra.transfer_out > 0 else "لا",
                 "خارج المذكرة", f"رقم الصنف {extra.code}" if extra.code else "",
@@ -291,7 +316,7 @@ def _pharmacy_sheet(ws, result):
                 cell = ws.cell(row=row_idx, column=col, value=value)
                 cell.border = BORDER
                 cell.fill = EXTRA_FILL
-                cell.alignment = Alignment(horizontal="right" if col in (1, 2, 13) else "center")
+                cell.alignment = Alignment(horizontal="right" if col in TEXT_COLS else "center")
             row_idx += 1
 
     if result.problems or result.notes:

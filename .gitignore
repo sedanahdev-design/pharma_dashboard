@@ -7,3 +7,12 @@ staticfiles/
 .venv/
 venv/
 *.log
+
+# Secrets: real keys live only in Render/Neon environment variables,
+# never in the repository.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/

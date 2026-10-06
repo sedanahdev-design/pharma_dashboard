@@ -149,6 +149,17 @@ class ResultRow:
         return self.quantity * self.price
 
     @property
+    def moved_qty(self) -> float:
+        """عدد العبوات المتحركة: how many packages of this item actually
+        left the shelf, sold and transferred together.
+
+        Kept distinct from the item COUNT used for راكد/متحرك: one is "how
+        many products moved at all", this is "how much stock moved", and
+        reading one as the other is the easiest mistake to make on this
+        report."""
+        return round(self.sold + self.transfer_out, 6)
+
+    @property
     def remaining(self) -> float:
         return round(self.quantity - self.sold - self.transfer_out + self.transfer_in, 6)
 
@@ -216,6 +227,10 @@ class ExtraRow:
     sold: float
     transfer_out: float
 
+    @property
+    def moved_qty(self) -> float:
+        return round(self.sold + self.transfer_out, 6)
+
 
 @dataclass
 class PharmacyResult:
@@ -252,6 +267,20 @@ class PharmacyResult:
         return len(self.moving)
 
     @property
+    def stagnant_qty(self):
+        """Packages sitting dead: the مذكرة quantity of every راكد item.
+        Counting items answers "how many products are stuck", this answers
+        "how much stock is stuck" - and a branch can look fine on one and
+        bad on the other."""
+        return sum(r.quantity for r in self.stagnant)
+
+    @property
+    def moving_qty(self):
+        """مذكرة quantity of the items that moved - NOT how much of them
+        moved. That figure is `total_moved_qty` (مباع + متناقل)."""
+        return sum(r.quantity for r in self.moving)
+
+    @property
     def stagnant_value(self):
         return sum(r.total_cost for r in self.stagnant)
 
@@ -279,6 +308,13 @@ class PharmacyResult:
     @property
     def total_transfer(self):
         return sum(r.transfer_out for r in self.rows)
+
+    @property
+    def total_moved_qty(self):
+        """Packages moved at this branch - the sum of المباع and المتناقل.
+        Deliberately NOT the same number as `moving_count`, which counts
+        items rather than packages."""
+        return sum(r.moved_qty for r in self.rows)
 
     @property
     def total_remaining(self):
@@ -361,6 +397,22 @@ class Report:
     @property
     def total_transfer(self):
         return sum(r.total_transfer for r in self.with_memo)
+
+    @property
+    def total_moved_qty(self):
+        return sum(r.total_moved_qty for r in self.with_memo)
+
+    @property
+    def total_pieces(self):
+        return sum(r.total_pieces for r in self.with_memo)
+
+    @property
+    def total_stagnant_qty(self):
+        return sum(r.stagnant_qty for r in self.with_memo)
+
+    @property
+    def total_moving_qty(self):
+        return sum(r.moving_qty for r in self.with_memo)
 
     @property
     def stagnant_pct(self):

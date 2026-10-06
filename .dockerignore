@@ -8,3 +8,8 @@ staticfiles/
 *.log
 .venv/
 venv/
+.env
+.env.*
+*.pem
+*.key
+secrets/
