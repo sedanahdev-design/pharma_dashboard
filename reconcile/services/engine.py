@@ -160,8 +160,34 @@ class ResultRow:
         return round(self.sold + self.transfer_out, 6)
 
     @property
-    def remaining(self) -> float:
+    def remaining_raw(self) -> float:
+        """The arithmetic as it falls out: العدد − المباع − المتناقل.
+
+        Can go below zero when more moved than the مذكرة lists. Kept
+        internally because it is the ONLY evidence that happened - it is
+        never reported."""
         return round(self.quantity - self.sold - self.transfer_out + self.transfer_in, 6)
+
+    @property
+    def remaining(self) -> float:
+        """الكمية المتبقية as reported: never negative.
+
+        A shelf cannot hold less than nothing, so once an item has sold or
+        transferred more than the مذكرة lists, the honest remainder is
+        zero, not a negative count.
+
+        Clamping hides the discrepancy from the number but NOT from the
+        report: `oversold` and `shortfall` still read the raw value, the
+        row is still coloured and still carries «المتحرك أكبر من الموجود»
+        with the exact shortfall in its ملاحظة, and the branch's warning
+        still counts it. The figure is cleaned up; the problem is not
+        swept away."""
+        return max(0.0, self.remaining_raw)
+
+    @property
+    def shortfall(self) -> float:
+        """How many packages moved beyond what the مذكرة listed."""
+        return round(-self.remaining_raw, 6) if self.remaining_raw < 0 else 0.0
 
     @property
     def sold_flag(self) -> str:
@@ -181,7 +207,9 @@ class ResultRow:
 
     @property
     def oversold(self) -> bool:
-        return self.remaining < 0
+        # Reads the raw value on purpose: `remaining` is clamped at zero,
+        # so testing it here would make this flag permanently false.
+        return self.remaining_raw < 0
 
     @property
     def remaining_value(self) -> float:
@@ -207,10 +235,12 @@ class ResultRow:
         # "راكد" is deliberately absent: the الحالة column already says it,
         # and repeating it would bury the exceptions this column exists for.
         if self.oversold:
-            bits.append("المتحرك أكبر من الموجود")
+            # The clamped column now reads 0, so the size of the gap is
+            # stated here or it is lost entirely.
+            bits.append(f"المتحرك أكبر من الموجود بـ {self.shortfall:g} (المتبقي صُفِّر)")
         if self.is_duplicate:
             bits.append("مكرر بالمذكرة")
-        if self.moved and self.remaining == 0:
+        if self.moved and not self.oversold and self.remaining == 0:
             bits.append("نفد بالكامل")
         if self.transfer_in:
             bits.append(f"وارد مناقلة {self.transfer_in:g}")
@@ -318,7 +348,15 @@ class PharmacyResult:
 
     @property
     def total_remaining(self):
+        """Sum of the clamped remainders, so a single over-moved item can
+        no longer eat into another item's genuine stock in the total."""
         return sum(r.remaining for r in self.rows)
+
+    @property
+    def total_shortfall(self):
+        """Packages that moved beyond what the مذكرة listed, across the
+        branch - the quantity the clamp removed from view."""
+        return sum(r.shortfall for r in self.rows)
 
     @property
     def oversold_count(self):
@@ -413,6 +451,14 @@ class Report:
     @property
     def total_moving_qty(self):
         return sum(r.moving_qty for r in self.with_memo)
+
+    @property
+    def total_remaining(self):
+        return sum(r.total_remaining for r in self.with_memo)
+
+    @property
+    def total_shortfall(self):
+        return sum(r.total_shortfall for r in self.with_memo)
 
     @property
     def stagnant_pct(self):
@@ -591,7 +637,9 @@ def _add_problems(result: PharmacyResult, items):
     if result.oversold_count:
         result.problems.append(
             f"{result.oversold_count} صنفاً كميته المتحركة (مبيع + مناقلة) أكبر من عدده "
-            "بالمذكرة - متبقٍّ بالسالب: إما حركة من دفعة غير مذكورة أو خطأ بالعدد."
+            f"بالمذكرة بمجموع {result.total_shortfall:g} عبوة - المتبقي لهذه الأصناف "
+            "مُصفَّر في التقرير (لا يُعرض بالسالب)، والسبب إما حركة من دفعة غير مذكورة "
+            "أو خطأ بالعدد. الأصناف مؤشَّرة بعمود الملاحظة مع مقدار الفرق."
         )
     if result.duplicate_count:
         result.problems.append(

@@ -176,6 +176,7 @@ def _comparison_sheet(ws, report):
         "عدد الأصناف المتحركة", "كمية عبوات الأصناف المتحركة", "قيمة المتحرك",
         "نسبة الراكد من العدد %",
         "إجمالي المباع", "إجمالي المتناقل", "إجمالي العبوات المتحركة",
+        "كمية المواد المتبقية بعد البيع والمناقلة",
         "الحالة",
     ]
     _title(
@@ -184,7 +185,7 @@ def _comparison_sheet(ws, report):
         report.batch.period_text or f"رُفع في {report.batch.uploaded_at:%Y/%m/%d}",
         len(headers),
     )
-    _header(ws, 4, headers, [30, 13, 14, 14, 15, 13, 14, 16, 13, 13, 12, 13, 15, 18])
+    _header(ws, 4, headers, [30, 13, 14, 14, 15, 13, 14, 16, 13, 13, 12, 13, 15, 17, 18])
 
     status_text = {
         "no-memo": ("لا توجد مذكرة", BAD_FILL),
@@ -211,6 +212,7 @@ def _comparison_sheet(ws, report):
             round(result.total_sold, 2),
             round(result.total_transfer, 2),
             round(result.total_moved_qty, 2),
+            round(result.total_remaining, 2),
             label,
         ]
         for col, value in enumerate(values, start=1):
@@ -230,7 +232,8 @@ def _comparison_sheet(ws, report):
         round(report.total_moving_value, 2),
         round(report.stagnant_pct, 1),
         round(report.total_sold, 2), round(report.total_transfer, 2),
-        round(report.total_moved_qty, 2), "",
+        round(report.total_moved_qty, 2),
+        round(report.total_remaining, 2), "",
     ]
     for col, value in enumerate(totals, start=1):
         cell = ws.cell(row=row_idx, column=col, value=value)
@@ -245,6 +248,7 @@ def _comparison_sheet(ws, report):
         "• «راكد» = لم يُبَع ولم يُناقل إطلاقاً خلال فترة الكشف. «متحرك» = بيع أو نوقل.",
         "• كل عمود «عدد …» يعدّ الأصناف، وبجانبه عمود «كمية …» يجمع العبوات - رقمان مختلفان عمداً.",
         "• «كمية عبوات الأصناف المتحركة» = ما تملكه الصيدلية من تلك الأصناف بالمذكرة. أما «إجمالي العبوات المتحركة» = ما تحرّك فعلاً منها (المباع + المتناقل).",
+        "• «كمية المواد المتبقية بعد البيع والمناقلة» لا تظهر بالسالب أبداً: إن تحرّك من صنف أكثر مما بمذكرته يُعرض متبقيه صفراً، ويُذكر الفرق في عمود الملاحظة بورقة الصيدلية وفي ورقة المشاكل والتنبيهات.",
         "• الكمية المتبقية = العدد بالمذكرة − المباع − المتناقل. القيمة بالسالب تعني حركة أكبر من الموجود.",
         "• قيمة الراكد والمتحرك محسوبة = العدد × الكلفة الوسطية لكل سطر.",
         "• راجع ورقة «المشاكل والتنبيهات» قبل اعتماد الأرقام.",
