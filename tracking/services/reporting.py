@@ -84,8 +84,27 @@ class CategoryStat:
     def target_value_pct(self):
         return (self.target_value / self.total_value * 100) if self.total_value else 0.0
 
+    #: How many item rows a category shows on screen. A busy month has
+    #: tens of thousands of rows across all categories, and rendering
+    #: them all produced an 18MB HTML page: slow to build, heavy enough
+    #: to kill a small web worker, and unusable on a phone. The Excel
+    #: export is still complete - this cap is for the screen only.
+    SCREEN_ITEM_LIMIT = 50
+
     def sorted_items(self):
         return sorted(self.items.values(), key=lambda i: i.quantity, reverse=True)
+
+    def screen_items(self):
+        """The rows worth putting on screen: the biggest sellers first."""
+        return self.sorted_items()[: self.SCREEN_ITEM_LIMIT]
+
+    @property
+    def item_count(self):
+        return len(self.items)
+
+    @property
+    def hidden_item_count(self):
+        return max(0, len(self.items) - self.SCREEN_ITEM_LIMIT)
 
     def sorted_pharmacies(self):
         return sorted(self.pharmacies.values(), key=lambda p: p.total_qty, reverse=True)

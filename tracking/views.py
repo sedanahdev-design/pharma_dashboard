@@ -5,6 +5,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from accounts.permissions import tracking_required
+from config.dbutils import insert_in_chunks
 
 from .forms import (
     CategoryForm,
@@ -15,12 +16,12 @@ from .forms import (
 from .models import Category, ItemPrice, MonthlyUpload, SalesRow, TargetItem
 from .services.export import build_workbook
 from .services.parsing import (
+    SalesScanStats,
     WorkbookFormatError,
     detect_workbook_kind,
-    extract_embedded_prices,
     parse_price_report_workbook,
-    parse_sales_workbook,
     parse_target_workbook,
+    stream_sales_workbook,
 )
 from .services.reporting import compute_report
 
@@ -72,11 +73,12 @@ def upload_create(request):
                 )
                 return render(request, "tracking/upload_form.html", {"form": form})
 
-            try:
-                sales_records = parse_sales_workbook(sales_file)
-            except WorkbookFormatError as exc:
-                form.add_error("sales_file", str(exc))
-                return render(request, "tracking/upload_form.html", {"form": form})
+            # The sales rows are no longer read into a list here: they
+            # are streamed straight into the database below, and the two
+            # aggregates that used to need their own passes over the file
+            # (the الشروحات 5 tags and the embedded prices) are collected
+            # during that same pass into `scan`.
+            scan = SalesScanStats()
 
             # Prices for this exact month can come from two places: a
             # separate price report (تقرير أصناف الأورانج) selected
@@ -86,8 +88,6 @@ def upload_create(request):
             # both are present the explicit report wins per item since it
             # was deliberately chosen, while the embedded prices still
             # fill in any item the report happens to miss.
-            embedded_price_records = extract_embedded_prices(sales_file)
-
             explicit_price_records = None
             if price_file is not None:
                 try:
@@ -95,15 +95,6 @@ def upload_create(request):
                 except WorkbookFormatError as exc:
                     form.add_error("sales_file", str(exc))
                     return render(request, "tracking/upload_form.html", {"form": form})
-
-            price_records = None
-            embedded_count = 0
-            if embedded_price_records or explicit_price_records:
-                merged = {rec.item_name: rec for rec in embedded_price_records}
-                embedded_count = len(merged)
-                for rec in explicit_price_records or []:
-                    merged[rec.item_name] = rec
-                price_records = list(merged.values())
 
             target_records = None
             if targets_file:
@@ -119,17 +110,27 @@ def upload_create(request):
                 upload.source_filename = getattr(sales_file, "name", "")
                 upload.save()
 
-                rows = [
-                    SalesRow(
-                        upload=upload,
-                        item_name=r.item_name,
-                        pharmacy_name=r.pharmacy_name,
-                        quantity=r.quantity,
-                        raw_category=r.raw_category,
+                try:
+                    insert_in_chunks(
+                        SalesRow,
+                        (
+                            SalesRow(
+                                upload=upload,
+                                item_name=r.item_name,
+                                pharmacy_name=r.pharmacy_name,
+                                quantity=r.quantity,
+                                raw_category=r.raw_category,
+                            )
+                            for r in stream_sales_workbook(sales_file, scan)
+                        ),
                     )
-                    for r in sales_records
-                ]
-                SalesRow.objects.bulk_create(rows, batch_size=BULK_CHUNK)
+                except WorkbookFormatError as exc:
+                    # Raised while streaming, so the transaction rolls the
+                    # half-written month back rather than leaving a
+                    # partial upload the owner would have to spot himself.
+                    transaction.set_rollback(True)
+                    form.add_error("sales_file", str(exc))
+                    return render(request, "tracking/upload_form.html", {"form": form})
 
                 if clone_from:
                     _clone_categories(clone_from, upload)
@@ -146,15 +147,27 @@ def upload_create(request):
                 # مبيعاته "بديل"). بدون هذه الخطوة، أي تصنيف لم يُذكر في
                 # ملف التارغيت يُستبعد بصمت من كل الإحصائيات - وهذا كان
                 # يُنتج نقصاً حقيقياً بإجمالي الكمية المتتبعة.
-                auto_created_categories = _auto_create_missing_categories(upload, sales_records)
+                auto_created_categories = _auto_create_missing_categories(
+                    upload, scan.category_tags
+                )
 
-                # A price report selected alongside the sales file always
-                # wins over anything cloned from a previous month - it's
-                # this month's own, exact prices.
+                # Prices are merged only now, because the embedded ones
+                # are only complete once the whole sheet has streamed
+                # past. A price report selected alongside the sales file
+                # still wins per item, and always beats anything cloned
+                # from a previous month - it is this month's own pricing.
+                embedded_price_records = scan.price_records()
+                embedded_count = len(embedded_price_records)
+                price_records = None
+                if embedded_price_records or explicit_price_records:
+                    merged = {rec.item_name: rec for rec in embedded_price_records}
+                    for rec in explicit_price_records or []:
+                        merged[rec.item_name] = rec
+                    price_records = list(merged.values())
                 if price_records:
                     _import_price_records(upload, price_records)
 
-            message = f"تم رفع الملف بنجاح: {len(sales_records):,} سطر مبيعات.".replace(",", "،")
+            message = f"تم رفع الملف بنجاح: {scan.count:,} سطر مبيعات.".replace(",", "،")
             if price_records:
                 message += f" وتم اشتقاق أسعار {len(price_records):,} صنف لهذا الشهر تحديداً".replace(",", "،")
                 if embedded_count and not explicit_price_records:
@@ -183,7 +196,7 @@ def _clone_categories(source_upload, target_upload):
         )
 
 
-def _auto_create_missing_categories(upload, sales_records):
+def _auto_create_missing_categories(upload, tags):
     """Every distinct, non-blank "الشروحات 5" tag found in the sales file
     is a real category as far as موسع is concerned, even if the target+
     كاتيغوري workbook never listed an official target item for it (a
@@ -192,14 +205,13 @@ def _auto_create_missing_categories(upload, sales_records):
     Category for this upload gets created here (with no target items) so
     its quantity/value isn't silently dropped from every total - matching
     what you'd get by filtering موسع on a non-blank الشروحات 5 column
-    yourself. Returns how many categories were auto-created this way."""
+    yourself. Returns how many categories were auto-created this way.
+
+    `tags` is the already-deduplicated, first-seen-order list collected
+    while the sheet streamed past, so this no longer needs the rows."""
     existing_names = {c.name for c in upload.categories.all()}
     max_order = max((c.order for c in upload.categories.all()), default=0)
-    seen_tags = []
-    for r in sales_records:
-        tag = (r.raw_category or "").strip()
-        if tag and tag not in existing_names and tag not in seen_tags:
-            seen_tags.append(tag)
+    seen_tags = [t for t in tags if t and t not in existing_names]
     for tag in seen_tags:
         max_order += 1
         Category.objects.create(upload=upload, name=tag, order=max_order)
@@ -233,17 +245,32 @@ def _clone_prices(source_upload, target_upload):
 
 
 def _import_price_records(upload, price_records):
-    updated = 0
-    created = 0
+    """Write this month's prices in two queries instead of two per item.
+
+    update_or_create() costs a SELECT and an INSERT/UPDATE per record; a
+    month with four thousand distinct items therefore spent roughly eight
+    thousand round trips here - about half the upload's total time, for
+    data that is written once and never merged with anything. Reading the
+    existing names once and splitting the records into one bulk insert
+    and one bulk update does the same work in a fraction of the time."""
+    existing = {
+        name: pk
+        for pk, name in ItemPrice.objects.filter(upload=upload).values_list("pk", "item_name")
+    }
+    to_create, to_update = [], []
     for rec in price_records:
-        _, was_created = ItemPrice.objects.update_or_create(
-            upload=upload, item_name=rec.item_name, defaults={"unit_price": rec.unit_price}
-        )
-        if was_created:
-            created += 1
+        pk = existing.get(rec.item_name)
+        if pk is None:
+            to_create.append(
+                ItemPrice(upload=upload, item_name=rec.item_name, unit_price=rec.unit_price)
+            )
         else:
-            updated += 1
-    return created, updated
+            to_update.append(ItemPrice(pk=pk, unit_price=rec.unit_price))
+    if to_create:
+        ItemPrice.objects.bulk_create(to_create, batch_size=BULK_CHUNK)
+    if to_update:
+        ItemPrice.objects.bulk_update(to_update, ["unit_price"], batch_size=BULK_CHUNK)
+    return len(to_create), len(to_update)
 
 
 @tracking_required

@@ -152,10 +152,20 @@ MEDIA_ROOT = BASE_DIR / "data" / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# Uploaded workbooks can be sizeable (tens of thousands of rows) - raise the
-# in-memory upload cap a bit above Django's 2.5MB default.
-DATA_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
-FILE_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
+# Uploaded workbooks can be sizeable (tens of thousands of rows), so the
+# request-body cap is raised well above Django's 2.5MB default.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 40 * 1024 * 1024
+
+# FILE_UPLOAD_MAX_MEMORY_SIZE is deliberately NOT raised: anything above
+# it is spooled to a temp file instead of being held in RAM, and the
+# parser reads a workbook from disk just as happily as from memory. A
+# 512MB instance cannot afford to hold a multi-megabyte upload in memory
+# twice over - once as the request body and again as the parsed sheet.
+FILE_UPLOAD_MAX_MEMORY_SIZE = 1 * 1024 * 1024
+
+# A form with a month's worth of inline category edits can exceed
+# Django's 1000-field default.
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 5000
 
 # Everything in this app is private data belonging to one account or the
 # other, so there is no anonymous page at all beyond the login form

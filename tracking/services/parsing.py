@@ -140,6 +140,122 @@ VALUE_KEYWORDS = ["القيمة", "السعر", "قيمة"]
 UNIT_PRICE_KEYWORDS = ["السعر"]
 
 
+class SalesScanStats:
+    """Everything the موسع file yields BESIDES its rows.
+
+    Collected during the single pass over the sheet so the caller never
+    has to open the workbook a second or third time:
+
+      * `category_tags` - the distinct, non-blank الشروحات 5 values in the
+        order they first appear (used to auto-create missing categories).
+      * `price_totals`  - per item name, [signed value, signed quantity],
+        from which the embedded unit price is derived exactly as
+        extract_embedded_prices() used to in its own pass.
+      * `count`         - rows yielded.
+    """
+
+    def __init__(self):
+        self.category_tags: list[str] = []
+        self._seen_tags: set[str] = set()
+        self.price_totals: dict[str, list[float]] = {}
+        self.count = 0
+        self.has_price_column = False
+
+    def note_tag(self, tag: str):
+        if tag and tag not in self._seen_tags:
+            self._seen_tags.add(tag)
+            self.category_tags.append(tag)
+
+    def note_price(self, item_name: str, qty: float, price: float):
+        # Signed weighting, for the reason spelled out in
+        # extract_embedded_prices(): returns carry a negative quantity and
+        # weighting by magnitude skews the average for any item with one.
+        if qty == 0 or price <= 0:
+            return
+        entry = self.price_totals.setdefault(item_name, [0.0, 0.0])
+        entry[0] += qty * price
+        entry[1] += qty
+
+    def price_records(self) -> list["PriceRecord"]:
+        return [
+            PriceRecord(item_name=name, unit_price=value / qty)
+            for name, (value, qty) in self.price_totals.items()
+            if qty != 0
+        ]
+
+
+def stream_sales_workbook(file_obj, stats: SalesScanStats):
+    """Yield one SalesRecord at a time instead of building a list.
+
+    The workbook used to be opened three times for a single upload - once
+    to sniff its kind, once for the rows, once for the embedded prices -
+    and the rows were then materialised twice over, as records and again
+    as model instances. On a month with tens of thousands of rows that
+    peaked near 300MB, which is a dead worker and an HTTP 502 on a small
+    instance rather than a slow page.
+
+    Here the sheet is read once, rows are handed out as they are read, and
+    the two aggregates the caller needs are accumulated in `stats` along
+    the way. Nothing larger than one row is held by this function."""
+    if hasattr(file_obj, "seek"):
+        file_obj.seek(0)
+    wb = openpyxl.load_workbook(file_obj, data_only=True, read_only=True)
+    try:
+        ws, header_row_idx, header = _first_sheet_with_header(
+            wb, [ITEM_KEYWORDS, PHARMACY_KEYWORDS, QUANTITY_KEYWORDS]
+        )
+        if ws is None:
+            raise WorkbookFormatError(
+                "لم أتمكن من العثور على أعمدة (اسم المادة / مركز الكلفة / عبوة) في الملف. "
+                "تأكد من أنك ترفع ملف موسع الشهر الصحيح."
+            )
+        item_col = _find_column(header, ITEM_KEYWORDS)
+        pharmacy_col = _find_column(header, PHARMACY_KEYWORDS)
+        qty_col = _find_column(header, QUANTITY_KEYWORDS)
+        cat_col = _find_column(header, CATEGORY_KEYWORDS)
+        price_col = _find_column(header, UNIT_PRICE_KEYWORDS)
+        stats.has_price_column = price_col is not None
+
+        for row in ws.iter_rows(min_row=header_row_idx + 1, values_only=True):
+            if row is None or len(row) <= item_col:
+                continue
+            item_name = _norm(row[item_col])
+            if not item_name:
+                continue
+            pharmacy = (
+                _norm(row[pharmacy_col])
+                if pharmacy_col is not None and pharmacy_col < len(row)
+                else ""
+            )
+            raw_qty = row[qty_col] if qty_col is not None and qty_col < len(row) else 0
+            try:
+                quantity = float(raw_qty) if raw_qty not in (None, "") else 0.0
+            except (TypeError, ValueError):
+                quantity = 0.0
+            raw_category = ""
+            if cat_col is not None and cat_col < len(row):
+                raw_category = _norm(row[cat_col])
+
+            stats.count += 1
+            stats.note_tag(raw_category)
+            if price_col is not None and price_col < len(row):
+                try:
+                    stats.note_price(item_name, quantity, float(row[price_col]))
+                except (TypeError, ValueError):
+                    pass
+
+            yield SalesRecord(
+                item_name=item_name,
+                pharmacy_name=pharmacy,
+                quantity=quantity,
+                raw_category=raw_category,
+            )
+    finally:
+        wb.close()
+        if hasattr(file_obj, "seek"):
+            file_obj.seek(0)
+
+
 def parse_sales_workbook(file_obj) -> list[SalesRecord]:
     """Parse a موسع-style workbook into a flat list of SalesRecord rows."""
     wb = openpyxl.load_workbook(file_obj, data_only=True, read_only=True)

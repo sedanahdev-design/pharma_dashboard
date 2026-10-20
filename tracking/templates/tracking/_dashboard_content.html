@@ -139,7 +139,7 @@
         {% for cat in report.categories %}
         {% if cat.total_qty > 0 %}
         <div class="result-category" id="result-cat-{{ cat.category.pk }}"
-             data-search="{{ cat.category.name }}{% for item in cat.sorted_items %} {{ item.item_name }}{% endfor %}{% for ph in cat.sorted_pharmacies %} {{ ph.pharmacy_name }}{% endfor %}">
+             data-search="{{ cat.category.name }}{% for item in cat.screen_items %} {{ item.item_name }}{% endfor %}{% for ph in cat.sorted_pharmacies %} {{ ph.pharmacy_name }}{% endfor %}">
             <div class="result-category-head">
                 <div>
                     <h3>{{ cat.category.name }}</h3>
@@ -160,7 +160,13 @@
             <div class="result-body">
                 <div class="result-tables">
                     <div>
-                        <div class="table-title">الأصناف ضمن هذا التصنيف</div>
+                        <div class="table-title">
+                            الأصناف ضمن هذا التصنيف
+                            {% if cat.hidden_item_count %}
+                            <span style="font-weight:400;">— أعلى {{ cat.screen_items|length }} من {{ cat.item_count }} صنف
+                            (القائمة كاملة في ملف Excel)</span>
+                            {% endif %}
+                        </div>
                         <div class="table-scroll">
                         <table class="data-table">
                             <thead><tr>
@@ -168,7 +174,7 @@
                                 {% if report.has_prices %}<th>السعر (ل.س.ج)</th><th>القيمة (ل.س.ج)</th>{% endif %}
                             </tr></thead>
                             <tbody>
-                            {% for item in cat.sorted_items %}
+                            {% for item in cat.screen_items %}
                             <tr class="{% if item.is_target %}is-target{% endif %}">
                                 <td>{{ item.item_name }}{% if item.is_target %}<span class="badge-target">مستهدف</span>{% endif %}</td>
                                 <td>{{ item.quantity|qty }}</td>

@@ -5,6 +5,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from accounts.permissions import reconcile_required
+from config.dbutils import insert_in_chunks
 
 from .forms import ImportPharmaciesForm, MemoUploadForm, MovementBatchForm, PharmacyForm
 from .models import Memo, MemoItem, MovementBatch, MovementRow, Pharmacy
@@ -78,8 +79,13 @@ def batch_create(request):
                 batch.source_filename = " + ".join(n for n in names if n)[:255]
                 batch.period_text = " | ".join(dict.fromkeys(periods))[:200]
                 batch.save()
-                MovementRow.objects.bulk_create(
-                    [
+                # Written in batches rather than as one list: a full
+                # كشف can carry 90,000+ movements, and building every
+                # MovementRow up front doubles the peak memory of an
+                # upload that is already holding the parsed records.
+                insert_in_chunks(
+                    MovementRow,
+                    (
                         MovementRow(
                             batch=batch,
                             code=r.code,
@@ -90,15 +96,18 @@ def batch_create(request):
                             price=r.price,
                         )
                         for r in records
-                    ],
-                    batch_size=BULK_CHUNK,
+                    ),
+                    chunk=BULK_CHUNK,
                 )
+                # The parsed records are no longer needed; let them go
+                # before the report is computed for the redirect.
+                records = None
 
             known = set(
                 Pharmacy.objects.filter(owner=request.user).values_list("cost_center", flat=True)
             )
             new_centers = [c for c in batch.cost_centers if c not in known]
-            msg = (f"تم رفع {len(uploads)} ملف: {len(records):,} حركة.").replace(",", "،")
+            msg = (f"تم رفع {len(uploads)} ملف: {batch.row_count:,} حركة.").replace(",", "،")
             if "transfers" not in kinds:
                 msg += (" تنبيه: لا يوجد ضمن الملفات المرفوعة أي كشف مناقلات، "
                         "لذلك سيبقى عمود «الكمية المتناقلة» صفراً.")

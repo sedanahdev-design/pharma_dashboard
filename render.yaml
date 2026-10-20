@@ -21,12 +21,10 @@ services:
         value: Asia/Baghdad
       - key: SEED_DEMO
         value: "1"
-      # The free instance has 512 MB of RAM: one process with a few
-      # threads leaves room for openpyxl to read a large workbook.
+      # The free instance has 512 MB of RAM; a streamed month upload
+      # peaks around 160 MB, so two workers is the safe ceiling.
       - key: GUNICORN_WORKERS
-        value: "1"
-      - key: GUNICORN_THREADS
-        value: "4"
+        value: "2"
       - key: GUNICORN_TIMEOUT
         value: "300"
       - key: APP_OWNER_USERNAME
